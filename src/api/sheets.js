@@ -1,6 +1,7 @@
 import { SHEET_ID, API_KEY, TAB_RANGES } from '../config/constants';
 
-const BASE_URL = 'https://sheets.googleapis.com/v4/spreadsheets';
+const GOOGLE_BASE_URL = 'https://sheets.googleapis.com/v4/spreadsheets';
+const PROXY_URL = '/api/sheets';
 
 function parseRows(values) {
   if (!values || values.length < 2) return [];
@@ -179,17 +180,34 @@ let cachedData = null;
 let lastFetchTime = null;
 
 export async function fetchAllSheetData() {
-  if (!API_KEY) {
-    console.warn('No Google API Key configured. Set VITE_GOOGLE_API_KEY in your .env file.');
-    return null;
+  // Try server-side proxy first (API key hidden), fall back to direct API
+  const ranges = Object.values(TAB_RANGES).map((r) => `ranges=${encodeURIComponent(r)}`).join('&');
+  let url;
+  let useProxy = false;
+
+  try {
+    // Check if proxy is available (Vercel deployment)
+    const probeUrl = `${PROXY_URL}?${ranges}`;
+    const probeResp = await fetch(probeUrl, { method: 'GET' });
+    if (probeResp.ok) {
+      url = probeUrl;
+      useProxy = true;
+    }
+  } catch {
+    // Proxy not available (local dev), use direct API
   }
 
-  const ranges = Object.values(TAB_RANGES).map((r) => `ranges=${encodeURIComponent(r)}`).join('&');
-  const url = `${BASE_URL}/${SHEET_ID}/values:batchGet?${ranges}&key=${API_KEY}`;
+  if (!useProxy) {
+    if (!API_KEY) {
+      console.warn('No Google API Key configured. Set VITE_GOOGLE_API_KEY in your .env file.');
+      return null;
+    }
+    url = `${GOOGLE_BASE_URL}/${SHEET_ID}/values:batchGet?${ranges}&key=${API_KEY}`;
+  }
 
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Google Sheets API error: ${response.status} ${response.statusText}`);
+    throw new Error('Failed to fetch data. Please try again.');
   }
 
   const json = await response.json();

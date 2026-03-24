@@ -50,7 +50,7 @@ export function getStudentRecord(data, student) {
 }
 
 export function searchStudents(data, query, location) {
-  if (!data?.STUDENTS_MASTER || !query || query.trim().length < 2) return [];
+  if (!data?.STUDENTS_MASTER || !query || query.trim().length < 2 || query.trim().length > 50) return [];
 
   const q = query.trim().toLowerCase();
 

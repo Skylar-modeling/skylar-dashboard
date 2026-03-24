@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import StudentSearch from './StudentSearch';
 
@@ -12,6 +13,14 @@ function formatTimeAgo(date) {
 export default function Layout({ title, children, lastUpdated, onRefresh, sheetData, filterLocation }) {
   const location = useLocation();
   const isHome = location.pathname === '/';
+  const [refreshCooldown, setRefreshCooldown] = useState(false);
+
+  const handleRefresh = useCallback(() => {
+    if (refreshCooldown || !onRefresh) return;
+    onRefresh();
+    setRefreshCooldown(true);
+    setTimeout(() => setRefreshCooldown(false), 30000);
+  }, [refreshCooldown, onRefresh]);
 
   if (isHome) return children;
 
@@ -39,10 +48,11 @@ export default function Layout({ title, children, lastUpdated, onRefresh, sheetD
             )}
             {onRefresh && (
               <button
-                onClick={onRefresh}
-                className="text-xs text-[var(--color-accent-blue)] hover:text-[var(--color-accent-blue)]/80 transition-colors cursor-pointer"
+                onClick={handleRefresh}
+                disabled={refreshCooldown}
+                className={`text-xs transition-colors cursor-pointer ${refreshCooldown ? 'text-[var(--color-text-muted)] cursor-not-allowed' : 'text-[var(--color-accent-blue)] hover:text-[var(--color-accent-blue)]/80'}`}
               >
-                Refresh
+                {refreshCooldown ? 'Refreshing...' : 'Refresh'}
               </button>
             )}
           </div>
