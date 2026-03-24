@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import StudentSearch from './StudentSearch';
 
 function formatTimeAgo(date) {
   if (!date) return 'Never';
@@ -8,7 +9,7 @@ function formatTimeAgo(date) {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
-export default function Layout({ title, children, lastUpdated, onRefresh }) {
+export default function Layout({ title, children, lastUpdated, onRefresh, sheetData, filterLocation }) {
   const location = useLocation();
   const isHome = location.pathname === '/';
 
@@ -28,6 +29,9 @@ export default function Layout({ title, children, lastUpdated, onRefresh }) {
             <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">{title}</h1>
           </div>
           <div className="flex items-center gap-3">
+            {sheetData && (
+              <StudentSearch data={sheetData} location={filterLocation} />
+            )}
             {lastUpdated && (
               <span className="text-xs text-[var(--color-text-muted)]">
                 Updated {formatTimeAgo(lastUpdated)}

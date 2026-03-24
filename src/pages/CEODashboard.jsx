@@ -109,7 +109,7 @@ export default function CEODashboard() {
 
   if (loading) {
     return (
-      <Layout title="CEO Dashboard" lastUpdated={lastUpdated} onRefresh={refresh}>
+      <Layout title="CEO Dashboard" lastUpdated={lastUpdated} onRefresh={refresh} sheetData={data} filterLocation={location}>
         <div className="flex items-center gap-4 mb-6">
           <div className="skeleton h-9 w-36" />
           <div className="skeleton h-9 w-36" />
@@ -124,7 +124,7 @@ export default function CEODashboard() {
   const m = metrics;
 
   return (
-    <Layout title="CEO Dashboard" lastUpdated={lastUpdated} onRefresh={refresh}>
+    <Layout title="CEO Dashboard" lastUpdated={lastUpdated} onRefresh={refresh} sheetData={data} filterLocation={location}>
       {/* Header controls */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <select
