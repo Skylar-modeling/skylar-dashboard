@@ -45,22 +45,26 @@ export function getLast6Months(yyyymm) {
   return months;
 }
 
+function isValidMonth(m) {
+  return m && /^\d{4}-\d{2}$/.test(m);
+}
+
 export function getAvailableMonths(data) {
   const months = new Set();
   if (data?.STUDENTS_MASTER) {
     data.STUDENTS_MASTER.forEach((s) => {
       const m = extractYearMonth(s.depositDate);
-      if (m) months.add(m);
+      if (isValidMonth(m)) months.add(m);
     });
   }
   if (data?.ACTUALIZED_REVENUE) {
     data.ACTUALIZED_REVENUE.forEach((r) => {
-      if (r.month) months.add(r.month);
+      if (isValidMonth(r.month)) months.add(r.month);
     });
   }
   if (data?.PAYMENTS_LOG) {
     data.PAYMENTS_LOG.forEach((p) => {
-      if (p.paymentMonth) months.add(p.paymentMonth);
+      if (isValidMonth(p.paymentMonth)) months.add(p.paymentMonth);
     });
   }
   return Array.from(months).sort().reverse();

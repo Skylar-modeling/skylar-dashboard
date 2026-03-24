@@ -53,7 +53,7 @@ export default function DataTable({ columns, data, emptyMessage = 'No data avail
             <tr key={i} className="border-b border-[var(--color-border)]/50 hover:bg-[var(--color-bg-primary)]/50">
               {columns.map((col) => (
                 <td key={col.key} className="py-3 px-4 text-[var(--color-text-primary)]">
-                  {col.render ? col.render(row[col.key], row) : row[col.key]}
+                  {col.render ? col.render(row[col.key], row, i) : row[col.key]}
                 </td>
               ))}
             </tr>

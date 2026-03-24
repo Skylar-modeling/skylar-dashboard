@@ -179,50 +179,51 @@ function normalizeTabData(key, rows) {
 let cachedData = null;
 let lastFetchTime = null;
 
-export async function fetchAllSheetData() {
-  // Try server-side proxy first (API key hidden), fall back to direct API
-  const ranges = Object.values(TAB_RANGES).map((r) => `ranges=${encodeURIComponent(r)}`).join('&');
-  let url;
-  let useProxy = false;
-
-  try {
-    // Check if proxy is available (Vercel deployment)
-    const probeUrl = `${PROXY_URL}?${ranges}`;
-    const probeResp = await fetch(probeUrl, { method: 'GET' });
-    if (probeResp.ok) {
-      url = probeUrl;
-      useProxy = true;
-    }
-  } catch {
-    // Proxy not available (local dev), use direct API
-  }
-
-  if (!useProxy) {
-    if (!API_KEY) {
-      console.warn('No Google API Key configured. Set VITE_GOOGLE_API_KEY in your .env file.');
-      return null;
-    }
-    url = `${GOOGLE_BASE_URL}/${SHEET_ID}/values:batchGet?${ranges}&key=${API_KEY}`;
-  }
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error('Failed to fetch data. Please try again.');
-  }
-
-  const json = await response.json();
+function processSheetResponse(json) {
   const tabKeys = Object.keys(TAB_RANGES);
   const data = {};
-
   json.valueRanges.forEach((vr, i) => {
     const key = tabKeys[i];
     const rows = parseRows(vr.values);
     data[key] = normalizeTabData(key, rows);
   });
-
   cachedData = data;
   lastFetchTime = new Date();
   return data;
+}
+
+export async function fetchAllSheetData() {
+  // Try server-side proxy first (API key hidden), fall back to direct API
+  const ranges = Object.values(TAB_RANGES).map((r) => `ranges=${encodeURIComponent(r)}`).join('&');
+
+  try {
+    // Check if proxy is available (Vercel deployment)
+    const probeUrl = `${PROXY_URL}?${ranges}`;
+    const probeResp = await fetch(probeUrl, { method: 'GET' });
+    const contentType = probeResp.headers.get('content-type') || '';
+    if (probeResp.ok && contentType.includes('application/json')) {
+      // Proxy returned valid JSON — use the already-fetched response
+      const json = await probeResp.json();
+      if (json.valueRanges) {
+        return processSheetResponse(json);
+      }
+    }
+  } catch {
+    // Proxy not available (local dev), use direct API
+  }
+
+  // Proxy didn't work — use direct API
+  if (!API_KEY) {
+    console.warn('No Google API Key configured. Set VITE_GOOGLE_API_KEY in your .env file.');
+    return null;
+  }
+  const directUrl = `${GOOGLE_BASE_URL}/${SHEET_ID}/values:batchGet?${ranges}&key=${API_KEY}`;
+  const response = await fetch(directUrl);
+  if (!response.ok) {
+    throw new Error('Failed to fetch data. Please try again.');
+  }
+  const json = await response.json();
+  return processSheetResponse(json);
 }
 
 export function getCachedData() {

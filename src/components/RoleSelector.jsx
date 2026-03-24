@@ -79,10 +79,10 @@ export default function RoleSelector() {
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="mb-14 text-center">
         <h1
-          className="text-4xl font-bold text-[var(--color-text-primary)] mb-2"
-          style={{ fontFamily: "'Open Sans', sans-serif", letterSpacing: '0.35em' }}
+          className="text-xl sm:text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] mb-2 uppercase tracking-[0.25em]"
+          style={{ fontFamily: "'Open Sans', sans-serif" }}
         >
-          S K Y L A R &nbsp; M O D E L I N G
+          Skylar&ensp;Modeling
         </h1>
         <p className="text-[var(--color-text-secondary)] text-lg mt-4">Select your dashboard view</p>
       </div>
