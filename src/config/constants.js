@@ -41,3 +41,46 @@ export const PROGRAM_COLORS = {
   'Photoshoot': '#F59E0B',
   'Online Program': '#A855F7',
 };
+
+// Authentication & Role System
+export const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
+
+export const ROLES = {
+  CEO: 'ceo',
+  MANAGER_NYC: 'manager_nyc',
+  MANAGER_MIA: 'manager_mia',
+  ADVISOR_NYC: 'advisor_nyc',
+  ADVISOR_MIA: 'advisor_mia',
+};
+
+export const ROLE_LABELS = {
+  [ROLES.CEO]: 'CEO',
+  [ROLES.MANAGER_NYC]: 'Manager NYC',
+  [ROLES.MANAGER_MIA]: 'Manager MIA',
+  [ROLES.ADVISOR_NYC]: 'Advisor NYC',
+  [ROLES.ADVISOR_MIA]: 'Advisor MIA',
+};
+
+// Maps each role to the route paths it can access
+const SINGLE_ROLE_ACCESS = {
+  [ROLES.CEO]: ['/ceo', '/manager/new-york', '/manager/miami', '/advisor/new-york', '/advisor/miami', '/admin'],
+  [ROLES.MANAGER_NYC]: ['/manager/new-york', '/advisor/new-york'],
+  [ROLES.MANAGER_MIA]: ['/manager/miami', '/advisor/miami'],
+  [ROLES.ADVISOR_NYC]: ['/advisor/new-york'],
+  [ROLES.ADVISOR_MIA]: ['/advisor/miami'],
+};
+
+// Get all allowed paths for a user (supports multiple roles as array or single string)
+export function getAllowedPaths(roles) {
+  if (!roles) return [];
+  const roleList = Array.isArray(roles) ? roles : [roles];
+  const paths = new Set();
+  roleList.forEach((role) => {
+    (SINGLE_ROLE_ACCESS[role] || []).forEach((p) => paths.add(p));
+  });
+  return Array.from(paths);
+}
+
+export function canAccessRoute(roles, path) {
+  return getAllowedPaths(roles).includes(path);
+}

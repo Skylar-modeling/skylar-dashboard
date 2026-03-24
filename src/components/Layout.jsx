@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useUser, useClerk } from '@clerk/clerk-react';
 import StudentSearch from './StudentSearch';
+import { CLERK_PUBLISHABLE_KEY } from '../config/constants';
 
 function formatTimeAgo(date) {
   if (!date) return 'Never';
@@ -55,12 +57,36 @@ export default function Layout({ title, children, lastUpdated, onRefresh, sheetD
                 {refreshCooldown ? 'Refreshing...' : 'Refresh'}
               </button>
             )}
+            {CLERK_PUBLISHABLE_KEY && <UserMenu />}
           </div>
         </div>
       </header>
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
         {children}
       </main>
+    </div>
+  );
+}
+
+function UserMenu() {
+  const { user } = useUser();
+  const { signOut } = useClerk();
+
+  if (!user) return null;
+
+  const displayName = user.firstName || user.primaryEmailAddress?.emailAddress || 'User';
+
+  return (
+    <div className="flex items-center gap-3 ml-3 border-l border-[var(--color-border)] pl-3">
+      <span className="text-sm text-[var(--color-text-secondary)] hidden sm:inline">
+        {displayName}
+      </span>
+      <button
+        onClick={() => signOut()}
+        className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent-red)] transition-colors cursor-pointer"
+      >
+        Sign out
+      </button>
     </div>
   );
 }
