@@ -52,7 +52,7 @@ export default function ManagerDashboard() {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [comparisonMode, setComparisonMode] = useState('prev'); // 'prev' | 'yoy'
 
-  const month = selectedMonth || (availableMonths.length > 0 ? availableMonths[0] : getCurrentMonth());
+  const month = selectedMonth || getCurrentMonth();
   const compMonth = comparisonMode === 'prev' ? getPreviousMonth(month) : getSameMonthLastYear(month);
 
   const metrics = useMemo(() => {

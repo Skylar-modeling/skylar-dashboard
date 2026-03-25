@@ -45,6 +45,15 @@ export function getLast6Months(yyyymm) {
   return months;
 }
 
+export function getYTDMonths(yyyymm) {
+  const [y, m] = yyyymm.split('-').map(Number);
+  const months = [];
+  for (let i = 1; i <= m; i++) {
+    months.push(`${y}-${String(i).padStart(2, '0')}`);
+  }
+  return months;
+}
+
 function isValidMonth(m) {
   return m && /^\d{4}-\d{2}$/.test(m);
 }

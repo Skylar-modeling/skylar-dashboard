@@ -11,7 +11,7 @@ import DataTable from '../components/DataTable';
 import EmptyState from '../components/EmptyState';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
-import { getCurrentMonth, getPreviousMonth, getAvailableMonths, getLast6Months, formatMonthDisplay } from '../utils/dateHelpers';
+import { getCurrentMonth, getPreviousMonth, getSameMonthLastYear, getAvailableMonths, getLast6Months, getYTDMonths, formatMonthDisplay } from '../utils/dateHelpers';
 import { formatCurrency, formatPercent, formatNumber } from '../utils/formatters';
 import {
   getRevenueSales, getSalesCount, getAverageDealSize, getActualizedRevenue,
@@ -52,47 +52,80 @@ export default function CEODashboard() {
   const availableMonths = useMemo(() => data ? getAvailableMonths(data) : [], [data]);
   const [selectedMonth, setSelectedMonth] = useState('');
 
-  const month = selectedMonth || (availableMonths.length > 0 ? availableMonths[0] : getCurrentMonth());
-  const prevMonth = getPreviousMonth(month);
+  const month = selectedMonth || getCurrentMonth();
+  const [comparisonMode, setComparisonMode] = useState('prev'); // 'prev' | 'yoy'
+
+  const compMonth = comparisonMode === 'prev' ? getPreviousMonth(month) : getSameMonthLastYear(month);
+
+  function calcMetrics(m, loc, isManager = false) {
+    return {
+      revenueSales: getRevenueSales(data, m, loc),
+      salesCount: getSalesCount(data, m, loc),
+      avgDeal: getAverageDealSize(data, m, loc),
+      actualizedRevenue: getActualizedRevenue(data, m, loc),
+      totalExpenses: getTotalExpenses(data, m, loc, isManager),
+      profit: getProfit(data, m, loc, isManager),
+      profitMargin: getProfitMargin(data, m, loc, isManager),
+      expenseRatio: getExpenseToRevenueRatio(data, m, loc, isManager),
+      adSpend: getAdSpend(data, m, loc),
+      roas: getROAS(data, m, loc),
+      cpa: getCPA(data, m, loc),
+      cashCollected: getCashCollected(data, m, loc),
+      collectionRate: getCollectionRate(data, m, loc),
+      outstandingReceivables: getOutstandingReceivables(data, loc),
+      totalCommission: getTotalCommissionOwed(data, m, loc),
+    };
+  }
 
   // Memoize all metrics
   const metrics = useMemo(() => {
     if (!data) return null;
-    const loc = location;
-    const cur = {
-      revenueSales: getRevenueSales(data, month, loc),
-      salesCount: getSalesCount(data, month, loc),
-      avgDeal: getAverageDealSize(data, month, loc),
-      actualizedRevenue: getActualizedRevenue(data, month, loc),
-      totalExpenses: getTotalExpenses(data, month, loc),
-      profit: getProfit(data, month, loc),
-      profitMargin: getProfitMargin(data, month, loc),
-      expenseRatio: getExpenseToRevenueRatio(data, month, loc),
-      adSpend: getAdSpend(data, month, loc),
-      roas: getROAS(data, month, loc),
-      cpa: getCPA(data, month, loc),
-      cashCollected: getCashCollected(data, month, loc),
-      collectionRate: getCollectionRate(data, month, loc),
-      outstandingReceivables: getOutstandingReceivables(data, loc),
-      totalCommission: getTotalCommissionOwed(data, month, loc),
-    };
-    const prev = {
-      revenueSales: getRevenueSales(data, prevMonth, loc),
-      salesCount: getSalesCount(data, prevMonth, loc),
-      avgDeal: getAverageDealSize(data, prevMonth, loc),
-      actualizedRevenue: getActualizedRevenue(data, prevMonth, loc),
-      totalExpenses: getTotalExpenses(data, prevMonth, loc),
-      profit: getProfit(data, prevMonth, loc),
-      profitMargin: getProfitMargin(data, prevMonth, loc),
-      expenseRatio: getExpenseToRevenueRatio(data, prevMonth, loc),
-      adSpend: getAdSpend(data, prevMonth, loc),
-      roas: getROAS(data, prevMonth, loc),
-      cpa: getCPA(data, prevMonth, loc),
-      cashCollected: getCashCollected(data, prevMonth, loc),
-      collectionRate: getCollectionRate(data, prevMonth, loc),
-    };
+    const cur = calcMetrics(month, location);
+    const prev = calcMetrics(compMonth, location);
     return { cur, prev };
-  }, [data, month, prevMonth, location]);
+  }, [data, month, compMonth, location]);
+
+  // Year-to-date totals
+  const ytdMetrics = useMemo(() => {
+    if (!data) return null;
+    const ytdMonths = getYTDMonths(month);
+    const loc = location;
+    const sumOverMonths = (fn, ...args) => ytdMonths.reduce((sum, m) => sum + (fn(data, m, loc, ...args) || 0), 0);
+    const ytdRevenue = sumOverMonths(getRevenueSales);
+    const ytdSales = sumOverMonths(getSalesCount);
+    const ytdActualized = sumOverMonths(getActualizedRevenue);
+    const ytdExpenses = sumOverMonths(getTotalExpenses);
+    const ytdAdSpend = sumOverMonths(getAdSpend);
+    const ytdCashCollected = sumOverMonths(getCashCollected);
+    return {
+      revenue: ytdRevenue,
+      sales: ytdSales,
+      avgDeal: ytdSales > 0 ? ytdRevenue / ytdSales : null,
+      actualized: ytdActualized,
+      expenses: ytdExpenses,
+      profit: ytdActualized - ytdExpenses,
+      profitMargin: ytdActualized > 0 ? ((ytdActualized - ytdExpenses) / ytdActualized) * 100 : null,
+      adSpend: ytdAdSpend,
+      roas: ytdAdSpend > 0 ? ytdRevenue / ytdAdSpend : null,
+      cpa: ytdSales > 0 ? ytdAdSpend / ytdSales : null,
+      cashCollected: ytdCashCollected,
+      collectionRate: ytdRevenue > 0 ? (ytdCashCollected / ytdRevenue) * 100 : null,
+    };
+  }, [data, month, location]);
+
+  // For YoY, check if comparison data has any values
+  const hasComparisonData = useMemo(() => {
+    if (!metrics) return false;
+    const p = metrics.prev;
+    return p.revenueSales > 0 || p.salesCount > 0 || p.actualizedRevenue > 0;
+  }, [metrics]);
+
+  const noYoYLabel = comparisonMode === 'yoy' && !hasComparisonData ? 'No prior year data' : undefined;
+
+  function comp(curVal, prevVal) {
+    if (noYoYLabel) return null;
+    return calcChange(curVal, prevVal);
+  }
 
   const programData = useMemo(() => data ? getRevenueByProgram(data, month, location) : [], [data, month, location]);
   const cashInOffice = useMemo(() => data ? getCashInOffice(data, month) : null, [data, month]);
@@ -137,7 +170,36 @@ export default function CEODashboard() {
           ))}
         </select>
         <MonthSelector months={availableMonths.length > 0 ? availableMonths : [getCurrentMonth()]} selected={month} onChange={setSelectedMonth} />
+        <div className="flex rounded-lg overflow-hidden border border-[var(--color-border)]">
+          {[
+            { key: 'prev', label: 'vs Prev Month' },
+            { key: 'yoy', label: 'vs Last Year' },
+          ].map((btn) => (
+            <button
+              key={btn.key}
+              onClick={() => setComparisonMode(btn.key)}
+              className={`px-3 py-2 text-sm cursor-pointer transition-colors ${comparisonMode === btn.key ? 'bg-[var(--color-accent-blue)] text-white' : 'bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* YTD Summary */}
+      {ytdMetrics && (
+        <>
+          <SectionTitle>Year-to-Date ({month.split('-')[0]})</SectionTitle>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-2">
+            <MetricCard label="YTD Revenue" value={formatCurrency(ytdMetrics.revenue)} />
+            <MetricCard label="YTD Sales" value={formatNumber(ytdMetrics.sales)} />
+            <MetricCard label="YTD Actualized" value={formatCurrency(ytdMetrics.actualized)} />
+            <MetricCard label="YTD Expenses" value={formatCurrency(ytdMetrics.expenses)} />
+            <MetricCard label="YTD Profit" value={formatCurrency(ytdMetrics.profit)} />
+            <MetricCard label="YTD Margin" value={ytdMetrics.profitMargin != null ? formatPercent(ytdMetrics.profitMargin) : 'N/A'} />
+          </div>
+        </>
+      )}
 
       {/* Section 1: Revenue & Sales */}
       <SectionTitle>Revenue &amp; Sales</SectionTitle>
@@ -145,22 +207,26 @@ export default function CEODashboard() {
         <MetricCard
           label="Revenue (Sales)"
           value={formatCurrency(m?.cur.revenueSales)}
-          comparison={m ? calcChange(m.cur.revenueSales, m.prev.revenueSales) : null}
+          comparison={m ? comp(m.cur.revenueSales, m.prev.revenueSales) : null}
+          comparisonLabel={noYoYLabel}
         />
         <MetricCard
           label="# of Sales"
           value={formatNumber(m?.cur.salesCount)}
-          comparison={m ? calcChange(m.cur.salesCount, m.prev.salesCount) : null}
+          comparison={m ? comp(m.cur.salesCount, m.prev.salesCount) : null}
+          comparisonLabel={noYoYLabel}
         />
         <MetricCard
           label="Average Deal Size"
           value={m?.cur.avgDeal != null ? formatCurrency(m.cur.avgDeal) : 'N/A'}
-          comparison={m ? calcChange(m.cur.avgDeal, m.prev.avgDeal) : null}
+          comparison={m ? comp(m.cur.avgDeal, m.prev.avgDeal) : null}
+          comparisonLabel={noYoYLabel}
         />
         <MetricCard
           label="Actualized Revenue"
           value={formatCurrency(m?.cur.actualizedRevenue)}
-          comparison={m ? calcChange(m.cur.actualizedRevenue, m.prev.actualizedRevenue) : null}
+          comparison={m ? comp(m.cur.actualizedRevenue, m.prev.actualizedRevenue) : null}
+          comparisonLabel={noYoYLabel}
         />
       </div>
 
@@ -170,22 +236,26 @@ export default function CEODashboard() {
         <MetricCard
           label="Total Expenses"
           value={formatCurrency(m?.cur.totalExpenses)}
-          comparison={m ? calcChange(m.cur.totalExpenses, m.prev.totalExpenses) : null}
+          comparison={m ? comp(m.cur.totalExpenses, m.prev.totalExpenses) : null}
+          comparisonLabel={noYoYLabel}
         />
         <MetricCard
           label="Profit"
           value={formatCurrency(m?.cur.profit)}
-          comparison={m ? calcChange(m.cur.profit, m.prev.profit) : null}
+          comparison={m ? comp(m.cur.profit, m.prev.profit) : null}
+          comparisonLabel={noYoYLabel}
         />
         <MetricCard
           label="Profit Margin"
           value={m?.cur.profitMargin != null ? formatPercent(m.cur.profitMargin) : 'N/A'}
-          comparison={m ? calcChange(m.cur.profitMargin, m.prev.profitMargin) : null}
+          comparison={m ? comp(m.cur.profitMargin, m.prev.profitMargin) : null}
+          comparisonLabel={noYoYLabel}
         />
         <MetricCard
           label="Expense-to-Revenue Ratio"
           value={m?.cur.expenseRatio != null ? formatPercent(m.cur.expenseRatio) : 'N/A'}
-          comparison={m ? calcChange(m.cur.expenseRatio, m.prev.expenseRatio) : null}
+          comparison={m ? comp(m.cur.expenseRatio, m.prev.expenseRatio) : null}
+          comparisonLabel={noYoYLabel}
         />
       </div>
 
@@ -195,17 +265,20 @@ export default function CEODashboard() {
         <MetricCard
           label="Ad Spend"
           value={formatCurrency(m?.cur.adSpend)}
-          comparison={m ? calcChange(m.cur.adSpend, m.prev.adSpend) : null}
+          comparison={m ? comp(m.cur.adSpend, m.prev.adSpend) : null}
+          comparisonLabel={noYoYLabel}
         />
         <MetricCard
           label="ROAS"
           value={m?.cur.roas != null ? `${m.cur.roas.toFixed(2)}x` : 'N/A'}
-          comparison={m ? calcChange(m.cur.roas, m.prev.roas) : null}
+          comparison={m ? comp(m.cur.roas, m.prev.roas) : null}
+          comparisonLabel={noYoYLabel}
         />
         <MetricCard
           label="CPA"
           value={m?.cur.cpa != null ? formatCurrency(m.cur.cpa) : 'N/A'}
-          comparison={m ? calcChange(m.cur.cpa, m.prev.cpa) : null}
+          comparison={m ? comp(m.cur.cpa, m.prev.cpa) : null}
+          comparisonLabel={noYoYLabel}
         />
       </div>
 
@@ -263,12 +336,14 @@ export default function CEODashboard() {
         <MetricCard
           label="Cash Collected"
           value={formatCurrency(m?.cur.cashCollected)}
-          comparison={m ? calcChange(m.cur.cashCollected, m.prev.cashCollected) : null}
+          comparison={m ? comp(m.cur.cashCollected, m.prev.cashCollected) : null}
+          comparisonLabel={noYoYLabel}
         />
         <MetricCard
           label="Collection Rate"
           value={m?.cur.collectionRate != null ? formatPercent(m.cur.collectionRate) : 'N/A'}
-          comparison={m ? calcChange(m.cur.collectionRate, m.prev.collectionRate) : null}
+          comparison={m ? comp(m.cur.collectionRate, m.prev.collectionRate) : null}
+          comparisonLabel={noYoYLabel}
         />
         <MetricCard
           label="Outstanding Receivables"

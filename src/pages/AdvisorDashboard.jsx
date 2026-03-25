@@ -51,7 +51,7 @@ export default function AdvisorDashboard() {
   const availableMonths = useMemo(() => data ? getAvailableMonths(data) : [], [data]);
   const [selectedMonth, setSelectedMonth] = useState('');
 
-  const month = selectedMonth || (availableMonths.length > 0 ? availableMonths[0] : getCurrentMonth());
+  const month = selectedMonth || getCurrentMonth();
   const prevMonth = getPreviousMonth(month);
 
   const salesOps = useMemo(() => data ? getSalesOperations(data, month, location) : null, [data, month, location]);
