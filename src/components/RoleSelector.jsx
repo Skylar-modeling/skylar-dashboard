@@ -34,12 +34,20 @@ const gearIcon = (
   </svg>
 );
 
+const dollarIcon = (
+  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
 const allRoleCards = [
   { path: '/ceo', title: 'CEO', description: 'Company-wide overview', icon: chartIcon },
   { path: '/manager/new-york', title: 'Manager NYC', description: 'New York location metrics', icon: buildingIcon },
   { path: '/manager/miami', title: 'Manager MIA', description: 'Miami location metrics', icon: sunIcon },
   { path: '/advisor/new-york', title: 'Advisor NYC', description: 'New York sales & students', icon: userIcon },
   { path: '/advisor/miami', title: 'Advisor MIA', description: 'Miami sales & students', icon: userIcon },
+  { path: '/rep/new-york', title: 'Rep NYC', description: 'Your commission & clients', icon: dollarIcon },
+  { path: '/rep/miami', title: 'Rep MIA', description: 'Your commission & clients', icon: dollarIcon },
   { path: '/admin', title: 'Admin', description: 'Manage users & roles', icon: gearIcon },
 ];
 
@@ -153,11 +161,13 @@ function RoleCards({ cards, navigate }) {
   const ceoCards = cards.filter((c) => c.path === '/ceo');
   const mgrCards = cards.filter((c) => c.path.startsWith('/manager'));
   const advCards = cards.filter((c) => c.path.startsWith('/advisor'));
+  const repCards = cards.filter((c) => c.path.startsWith('/rep'));
   const adminCards = cards.filter((c) => c.path === '/admin');
 
   if (ceoCards.length) groups.push({ label: null, roles: ceoCards });
   if (mgrCards.length) groups.push({ label: 'Manager', roles: mgrCards });
   if (advCards.length) groups.push({ label: 'Advisor', roles: advCards });
+  if (repCards.length) groups.push({ label: 'Sales Rep', roles: repCards });
   if (adminCards.length) groups.push({ label: null, roles: adminCards });
 
   return (

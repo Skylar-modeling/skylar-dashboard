@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import CEODashboard from './pages/CEODashboard';
 import ManagerDashboard from './pages/ManagerDashboard';
 import AdvisorDashboard from './pages/AdvisorDashboard';
+import RepDashboard from './pages/RepDashboard';
 import AdminPage from './pages/AdminPage';
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/ceo" element={<ProtectedRoute><CEODashboard /></ProtectedRoute>} />
           <Route path="/manager/:locationSlug" element={<ProtectedRoute><ManagerDashboard /></ProtectedRoute>} />
           <Route path="/advisor/:locationSlug" element={<ProtectedRoute><AdvisorDashboard /></ProtectedRoute>} />
+          <Route path="/rep/:locationSlug" element={<ProtectedRoute><RepDashboard /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>

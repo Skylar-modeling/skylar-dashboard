@@ -51,6 +51,8 @@ export const ROLES = {
   MANAGER_MIA: 'manager_mia',
   ADVISOR_NYC: 'advisor_nyc',
   ADVISOR_MIA: 'advisor_mia',
+  REP_NYC: 'rep_nyc',
+  REP_MIA: 'rep_mia',
 };
 
 export const ROLE_LABELS = {
@@ -59,15 +61,19 @@ export const ROLE_LABELS = {
   [ROLES.MANAGER_MIA]: 'Manager MIA',
   [ROLES.ADVISOR_NYC]: 'Advisor NYC',
   [ROLES.ADVISOR_MIA]: 'Advisor MIA',
+  [ROLES.REP_NYC]: 'Rep NYC',
+  [ROLES.REP_MIA]: 'Rep MIA',
 };
 
 // Maps each role to the route paths it can access
 const SINGLE_ROLE_ACCESS = {
-  [ROLES.CEO]: ['/ceo', '/manager/new-york', '/manager/miami', '/advisor/new-york', '/advisor/miami', '/admin'],
-  [ROLES.MANAGER_NYC]: ['/manager/new-york', '/advisor/new-york'],
-  [ROLES.MANAGER_MIA]: ['/manager/miami', '/advisor/miami'],
+  [ROLES.CEO]: ['/ceo', '/manager/new-york', '/manager/miami', '/advisor/new-york', '/advisor/miami', '/rep/new-york', '/rep/miami', '/admin'],
+  [ROLES.MANAGER_NYC]: ['/manager/new-york', '/advisor/new-york', '/rep/new-york'],
+  [ROLES.MANAGER_MIA]: ['/manager/miami', '/advisor/miami', '/rep/miami'],
   [ROLES.ADVISOR_NYC]: ['/advisor/new-york'],
   [ROLES.ADVISOR_MIA]: ['/advisor/miami'],
+  [ROLES.REP_NYC]: ['/rep/new-york'],
+  [ROLES.REP_MIA]: ['/rep/miami'],
 };
 
 // Get all allowed paths for a user (supports multiple roles as array or single string)
