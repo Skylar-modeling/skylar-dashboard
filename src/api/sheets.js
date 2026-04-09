@@ -22,152 +22,205 @@ function parseNumeric(val) {
   return isNaN(num) ? 0 : num;
 }
 
+/**
+ * Look up a value from a raw row object using the first matching header name.
+ * Handles sheets where headers may include extra text like "(YYYY-MM)" or newlines.
+ */
+function col(r, ...candidates) {
+  // Try exact match first
+  for (const c of candidates) {
+    if (c in r) return r[c];
+  }
+  // Try partial match — header contains the candidate string
+  const keys = Object.keys(r);
+  for (const c of candidates) {
+    const lower = c.toLowerCase();
+    const found = keys.find((k) => k.toLowerCase().includes(lower));
+    if (found !== undefined) return r[found];
+  }
+  return '';
+}
+
+/**
+ * Normalize month values that come as "January 2026" or "2026-01" etc. to "YYYY-MM".
+ */
+function normalizeMonth(val) {
+  if (!val) return '';
+  const s = String(val).trim();
+  // Already YYYY-MM
+  if (/^\d{4}-\d{2}$/.test(s)) return s;
+  // Try parsing "January 2026", "Jan 2026", etc.
+  const d = new Date(s + ' 1'); // Append day so Date can parse "January 2026"
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    if (y > 2000) return `${y}-${m}`;
+  }
+  // Last resort — try Date directly
+  const d2 = new Date(s);
+  if (!isNaN(d2.getTime())) {
+    const y = d2.getFullYear();
+    const m = String(d2.getMonth() + 1).padStart(2, '0');
+    if (y > 2000) return `${y}-${m}`;
+  }
+  return s;
+}
+
+/**
+ * Normalize location values — "Company-Wide" and blank both mean company-wide.
+ */
+function normalizeLocation(val) {
+  const s = String(val || '').trim();
+  if (s.toLowerCase() === 'company-wide' || s === '') return '';
+  return s;
+}
+
 function normalizeTabData(key, rows) {
   const colMap = {
     STUDENTS_MASTER: (r) => ({
-      studentId: r['Student ID'] ?? r[Object.keys(r)[0]] ?? '',
-      fullName: r['Full Name'] ?? r[Object.keys(r)[1]] ?? '',
-      email: r['Email'] ?? r[Object.keys(r)[2]] ?? '',
-      phone: r['Phone'] ?? r[Object.keys(r)[3]] ?? '',
-      location: r['Location'] ?? r[Object.keys(r)[5]] ?? '',
-      program: r['Program'] ?? r[Object.keys(r)[6]] ?? '',
-      startDate: r['Start Date'] ?? r[Object.keys(r)[7]] ?? '',
-      endDate: r['End Date'] ?? r[Object.keys(r)[8]] ?? '',
-      salesRep1: r['Sales Rep (Primary)'] ?? r[Object.keys(r)[9]] ?? '',
-      salesRep2: r['Sales Rep (Secondary)'] ?? r[Object.keys(r)[10]] ?? '',
-      splitDeal: r['Split Deal?'] ?? r[Object.keys(r)[11]] ?? '',
-      contractPrice: parseNumeric(r['Contract Price'] ?? r[Object.keys(r)[12]]),
-      deposit: parseNumeric(r['Deposit'] ?? r[Object.keys(r)[13]]),
-      depositDate: r['Deposit Date'] ?? r[Object.keys(r)[14]] ?? '',
-      depositMethod: r['Deposit Method'] ?? r[Object.keys(r)[15]] ?? '',
-      contractSigned: r['Contract Signed?'] ?? r[Object.keys(r)[16]] ?? '',
-      stripeCustomerId: r['Stripe Customer ID'] ?? r[Object.keys(r)[17]] ?? '',
-      stripeSubId: r['Stripe Sub ID'] ?? r[Object.keys(r)[18]] ?? '',
-      stripeStatus: r['Stripe Status'] ?? r[Object.keys(r)[19]] ?? '',
+      studentId: col(r, 'Student ID'),
+      fullName: col(r, 'Full Name'),
+      email: col(r, 'Email'),
+      phone: col(r, 'Phone'),
+      location: col(r, 'Location'),
+      program: col(r, 'Program'),
+      startDate: col(r, 'Start Date'),
+      endDate: col(r, 'End Date'),
+      salesRep1: col(r, 'Sales Rep (Primary)'),
+      salesRep2: col(r, 'Sales Rep (Secondary)'),
+      splitDeal: col(r, 'Split Deal?'),
+      contractPrice: parseNumeric(col(r, 'Contract Price')),
+      deposit: parseNumeric(col(r, 'Deposit')),
+      depositDate: col(r, 'Deposit Date'),
+      depositMethod: col(r, 'Deposit Method'),
+      contractSigned: col(r, 'Contract Signed?'),
+      stripeCustomerId: col(r, 'Stripe Customer ID'),
+      stripeSubId: col(r, 'Stripe Sub ID'),
+      stripeStatus: col(r, 'Stripe Status'),
     }),
     ACTUALIZED_REVENUE: (r) => ({
-      month: r['Month'] ?? r[Object.keys(r)[0]] ?? '',
-      location: r['Location'] ?? r[Object.keys(r)[1]] ?? '',
-      actualizedRevenue: parseNumeric(r['Actualized Revenue ($)'] ?? r[Object.keys(r)[2]]),
-      program: r['Program'] ?? r[Object.keys(r)[3]] ?? '',
-      studentCount: parseNumeric(r['Student Count'] ?? r[Object.keys(r)[4]]),
-      studentEmail: r['Student Email'] ?? r[Object.keys(r)[5]] ?? '',
+      month: normalizeMonth(col(r, 'Month')),
+      location: col(r, 'Location'),
+      actualizedRevenue: parseNumeric(col(r, 'Actualized Revenue')),
+      program: col(r, 'Program'),
+      studentCount: parseNumeric(col(r, 'Student Count')),
+      studentEmail: col(r, 'Student Email'),
     }),
     PAYMENTS_LOG: (r) => ({
-      paymentId: r['Payment ID'] ?? r[Object.keys(r)[0]] ?? '',
-      studentId: r['Student ID'] ?? r[Object.keys(r)[1]] ?? '',
-      studentEmail: r['Student Email'] ?? r[Object.keys(r)[2]] ?? '',
-      paymentAmount: parseNumeric(r['Payment Amount'] ?? r[Object.keys(r)[3]]),
-      paymentDate: r['Payment Date'] ?? r[Object.keys(r)[4]] ?? '',
-      paymentStatus: r['Payment Status'] ?? r[Object.keys(r)[5]] ?? '',
-      source: r['Source'] ?? r[Object.keys(r)[6]] ?? '',
-      location: r['Location'] ?? r[Object.keys(r)[7]] ?? '',
-      stripeInvoiceId: r['Stripe Invoice ID'] ?? r[Object.keys(r)[8]] ?? '',
-      stripeCustomerId: r['Stripe Customer ID'] ?? r[Object.keys(r)[9]] ?? '',
-      rep1: r['Rep 1'] ?? r[Object.keys(r)[10]] ?? '',
-      rep1Split: parseNumeric(r['Rep 1 Split %'] ?? r[Object.keys(r)[11]]),
-      rep1Commission: parseNumeric(r['Rep 1 Commission ($)'] ?? r[Object.keys(r)[12]]),
-      rep2: r['Rep 2'] ?? r[Object.keys(r)[13]] ?? '',
-      rep2Split: parseNumeric(r['Rep 2 Split %'] ?? r[Object.keys(r)[14]]),
-      rep2Commission: parseNumeric(r['Rep 2 Commission ($)'] ?? r[Object.keys(r)[15]]),
-      paymentMonth: r['Payment Month'] ?? r[Object.keys(r)[16]] ?? '',
-      refunded: r['Refunded'] ?? r[Object.keys(r)[17]] ?? '',
+      paymentId: col(r, 'Payment ID'),
+      studentId: col(r, 'Student ID'),
+      studentEmail: col(r, 'Student Email'),
+      paymentAmount: parseNumeric(col(r, 'Payment Amount')),
+      paymentDate: col(r, 'Payment Date'),
+      paymentStatus: col(r, 'Payment Status'),
+      source: col(r, 'Source'),
+      location: col(r, 'Location'),
+      stripeInvoiceId: col(r, 'Stripe Invoice ID'),
+      stripeCustomerId: col(r, 'Stripe Customer ID'),
+      rep1: col(r, 'Rep 1'),
+      rep1Split: parseNumeric(col(r, 'Rep 1 Split')),
+      rep1Commission: parseNumeric(col(r, 'Rep 1 Commission')),
+      rep2: col(r, 'Rep 2'),
+      rep2Split: parseNumeric(col(r, 'Rep 2 Split')),
+      rep2Commission: parseNumeric(col(r, 'Rep 2 Commission')),
+      paymentMonth: normalizeMonth(col(r, 'Payment Month')),
+      refunded: col(r, 'Refunded'),
     }),
     SALES_REPS: (r) => ({
-      name: r['Sales Rep'] ?? r[Object.keys(r)[0]] ?? '',
-      commissionRate: parseNumeric(r['Commission Rate'] ?? r[Object.keys(r)[1]]),
-      primaryLocation: r['Primary Location'] ?? r[Object.keys(r)[2]] ?? '',
-      email: r['Email'] ?? r[Object.keys(r)[3]] ?? '',
-      phone: r['Phone'] ?? r[Object.keys(r)[4]] ?? '',
-      active: r['Active?'] ?? r[Object.keys(r)[5]] ?? '',
-      notes: r['Notes'] ?? r[Object.keys(r)[6]] ?? '',
+      name: col(r, 'Sales Rep'),
+      commissionRate: parseNumeric(col(r, 'Commission Rate')),
+      primaryLocation: col(r, 'Primary Location'),
+      email: col(r, 'Email'),
+      phone: col(r, 'Phone'),
+      active: col(r, 'Active?'),
+      notes: col(r, 'Notes', 'Title'),
     }),
     DAILY_SALES_LOG: (r) => ({
-      timestamp: r['Timestamp'] ?? r[Object.keys(r)[0]] ?? '',
-      salesRep: r['Sales Rep'] ?? r[Object.keys(r)[1]] ?? '',
-      location: r['Location'] ?? r[Object.keys(r)[2]] ?? '',
-      apptType: r['Appt Type'] ?? r[Object.keys(r)[3]] ?? '',
-      shiftDate: r['Shift Date'] ?? r[Object.keys(r)[4]] ?? '',
-      apptsScheduled: parseNumeric(r['Appts Scheduled'] ?? r[Object.keys(r)[6]]),
-      showUps: parseNumeric(r['Show-Ups'] ?? r[Object.keys(r)[7]]),
-      noShows: parseNumeric(r['No-Shows'] ?? r[Object.keys(r)[8]]),
-      enrollments: parseNumeric(r['Enrollments'] ?? r[Object.keys(r)[9]]),
-      cancellations: parseNumeric(r['Cancellations'] ?? r[Object.keys(r)[10]]),
-      depositCollected: parseNumeric(r['Deposit Collected ($)'] ?? r[Object.keys(r)[11]]),
-      notes: r['Notes'] ?? r[Object.keys(r)[12]] ?? '',
-      month: r['Month'] ?? r[Object.keys(r)[13]] ?? '',
+      timestamp: col(r, 'Timestamp'),
+      salesRep: col(r, 'Sales Rep'),
+      location: col(r, 'Location'),
+      apptType: col(r, 'Appt Type'),
+      shiftDate: col(r, 'Shift Date'),
+      apptsScheduled: parseNumeric(col(r, 'Appts Scheduled')),
+      showUps: parseNumeric(col(r, 'Show-Ups', 'Show Ups')),
+      noShows: parseNumeric(col(r, 'No-Shows', 'No Shows')),
+      enrollments: parseNumeric(col(r, 'Enrollments')),
+      cancellations: parseNumeric(col(r, 'Cancellations')),
+      depositCollected: parseNumeric(col(r, 'Deposit Collected')),
+      notes: col(r, 'Notes'),
+      month: normalizeMonth(col(r, 'Shift Date')),
     }),
     COMMISSION_MONTHLY: (r) => ({
-      salesRep: r['Sales Rep'] ?? r[Object.keys(r)[0]] ?? '',
-      month: r['Month'] ?? r[Object.keys(r)[1]] ?? '',
-      location: r['Location'] ?? r[Object.keys(r)[2]] ?? '',
-      revenueAsRep1: parseNumeric(r['Revenue as Rep 1 ($)'] ?? r[Object.keys(r)[3]]),
-      commissionAsRep1: parseNumeric(r['Commission as Rep 1 ($)'] ?? r[Object.keys(r)[4]]),
-      revenueAsRep2: parseNumeric(r['Revenue as Rep 2 ($)'] ?? r[Object.keys(r)[5]]),
-      commissionAsRep2: parseNumeric(r['Commission as Rep 2 ($)'] ?? r[Object.keys(r)[6]]),
-      totalCommission: parseNumeric(r['Total Commission ($)'] ?? r[Object.keys(r)[7]]),
-      commissionPaid: r['Commission Paid?'] ?? r[Object.keys(r)[8]] ?? '',
+      salesRep: col(r, 'Sales Rep'),
+      month: normalizeMonth(col(r, 'Month')),
+      location: col(r, 'Location'),
+      revenueAsRep1: parseNumeric(col(r, 'Revenue as Rep 1')),
+      commissionAsRep1: parseNumeric(col(r, 'Commission as Rep 1')),
+      revenueAsRep2: parseNumeric(col(r, 'Revenue as Rep 2')),
+      commissionAsRep2: parseNumeric(col(r, 'Commission as Rep 2')),
+      totalCommission: parseNumeric(col(r, 'Total Commission')),
+      commissionPaid: col(r, 'Commission Paid?'),
     }),
     REVENUE_BY_LOCATION: (r) => ({
-      month: r['Month'] ?? r[Object.keys(r)[0]] ?? '',
-      location: r['Location'] ?? r[Object.keys(r)[1]] ?? '',
-      grossRevenue: parseNumeric(r['Gross Revenue ($)'] ?? r[Object.keys(r)[2]]),
-      refunds: parseNumeric(r['Refunds ($)'] ?? r[Object.keys(r)[3]]),
-      netRevenue: parseNumeric(r['Net Revenue ($)'] ?? r[Object.keys(r)[4]]),
-      numPayments: parseNumeric(r['# Payments'] ?? r[Object.keys(r)[5]]),
-      totalExpenses: parseNumeric(r['Total Expenses ($)'] ?? r[Object.keys(r)[6]]),
-      expenseCategories: r['Expense Categories'] ?? r[Object.keys(r)[7]] ?? '',
-      numExpenses: parseNumeric(r['# Expenses'] ?? r[Object.keys(r)[8]]),
-      fbAds: parseNumeric(r['FB Ads ($)'] ?? r[Object.keys(r)[9]]),
-      googleAds: parseNumeric(r['Google Ads ($)'] ?? r[Object.keys(r)[10]]),
-      grossProfit: parseNumeric(r['Gross Profit ($)'] ?? r[Object.keys(r)[11]]),
+      month: normalizeMonth(col(r, 'Month')),
+      location: col(r, 'Location'),
+      grossRevenue: parseNumeric(col(r, 'Gross Revenue')),
+      refunds: parseNumeric(col(r, 'Refunds')),
+      netRevenue: parseNumeric(col(r, 'Net Revenue')),
+      numPayments: parseNumeric(col(r, '# Payments')),
+      totalExpenses: parseNumeric(col(r, 'Total Expenses')),
+      expenseCategories: col(r, 'Expense Categories'),
+      numExpenses: parseNumeric(col(r, '# Expenses')),
+      fbAds: parseNumeric(col(r, 'FB Ads')),
+      googleAds: parseNumeric(col(r, 'Google Ads')),
+      grossProfit: parseNumeric(col(r, 'Gross Profit')),
     }),
     MONTHLY_EXPENSES: (r) => ({
-      month: r['Month'] ?? r[Object.keys(r)[0]] ?? '',
-      location: r['Location'] ?? r[Object.keys(r)[1]] ?? '',
-      amount: parseNumeric(r['Amount'] ?? r[Object.keys(r)[2]]),
-      category: r['Category'] ?? r[Object.keys(r)[3]] ?? '',
-      vendor: r['Vendor / Description'] ?? r[Object.keys(r)[4]] ?? '',
-      paid: r['Paid?'] ?? r[Object.keys(r)[5]] ?? '',
-      submittedBy: r['Submitted By'] ?? r[Object.keys(r)[6]] ?? '',
+      month: normalizeMonth(col(r, 'Month')),
+      location: normalizeLocation(col(r, 'Location')),
+      amount: parseNumeric(col(r, 'Amount')),
+      category: col(r, 'Category'),
+      vendor: col(r, 'Vendor', 'Description'),
+      paid: col(r, 'Paid?'),
+      submittedBy: col(r, 'Submitted By'),
     }),
     AD_STATISTICS: (r) => ({
-      location: r['Location'] ?? r[Object.keys(r)[0]] ?? '',
-      month: r['Month'] ?? r[Object.keys(r)[1]] ?? '',
-      platform: r['Platform'] ?? r[Object.keys(r)[2]] ?? '',
-      adSpend: parseNumeric(r['Ad Spend ($)'] ?? r[Object.keys(r)[3]]),
-      impressions: parseNumeric(r['Impressions'] ?? r[Object.keys(r)[4]]),
-      clicks: parseNumeric(r['Clicks'] ?? r[Object.keys(r)[5]]),
-      leads: parseNumeric(r['Leads'] ?? r[Object.keys(r)[6]]),
-      cpm: parseNumeric(r['CPM ($)'] ?? r[Object.keys(r)[7]]),
-      ctr: parseNumeric(r['CTR (%)'] ?? r[Object.keys(r)[8]]),
-      cpc: parseNumeric(r['CPC ($)'] ?? r[Object.keys(r)[9]]),
-      cpl: parseNumeric(r['CPL ($)'] ?? r[Object.keys(r)[10]]),
-      lpc: parseNumeric(r['LPC (%)'] ?? r[Object.keys(r)[11]]),
+      location: col(r, 'Location'),
+      month: normalizeMonth(col(r, 'Month')),
+      platform: col(r, 'Platform'),
+      adSpend: parseNumeric(col(r, 'Ad Spend')),
+      impressions: parseNumeric(col(r, 'Impressions')),
+      clicks: parseNumeric(col(r, 'Clicks')),
+      leads: parseNumeric(col(r, 'Leads')),
+      cpm: parseNumeric(col(r, 'CPM')),
+      ctr: parseNumeric(col(r, 'CTR')),
+      cpc: parseNumeric(col(r, 'CPC')),
+      cpl: parseNumeric(col(r, 'CPL')),
+      lpc: parseNumeric(col(r, 'LPC')),
     }),
     CASH_TRANSACTIONS: (r) => ({
-      transactionId: r['Transaction ID'] ?? r[Object.keys(r)[0]] ?? '',
-      date: r['Date'] ?? r[Object.keys(r)[1]] ?? '',
-      location: r['Location'] ?? r[Object.keys(r)[2]] ?? '',
-      type: r['Type'] ?? r[Object.keys(r)[3]] ?? '',
-      amount: parseNumeric(r['Amount'] ?? r[Object.keys(r)[4]]),
-      studentName: r['Student Name'] ?? r[Object.keys(r)[5]] ?? '',
-      studentEmail: r['Student Email'] ?? r[Object.keys(r)[6]] ?? '',
-      paymentMethod: r['Payment Method'] ?? r[Object.keys(r)[7]] ?? '',
-      depositedToBank: r['Deposited to Bank?'] ?? r[Object.keys(r)[8]] ?? '',
-      depositDate: r['Deposit Date'] ?? r[Object.keys(r)[9]] ?? '',
-      recordedBy: r['Recorded By'] ?? r[Object.keys(r)[10]] ?? '',
+      transactionId: col(r, 'Transaction ID'),
+      date: col(r, 'Date'),
+      location: col(r, 'Location'),
+      type: col(r, 'Type'),
+      amount: parseNumeric(col(r, 'Amount')),
+      studentName: col(r, 'Student Name'),
+      studentEmail: col(r, 'Student Email'),
+      paymentMethod: col(r, 'Payment Method'),
+      depositedToBank: col(r, 'Deposited to Bank?'),
+      depositDate: col(r, 'Deposit Date'),
+      recordedBy: col(r, 'Recorded By'),
     }),
     CASH_LEDGER: (r) => ({
-      month: r['Month'] ?? r[Object.keys(r)[0]] ?? '',
-      location: r['Location'] ?? r[Object.keys(r)[1]] ?? '',
-      cashIn: parseNumeric(r['Cash In ($)'] ?? r[Object.keys(r)[2]]),
-      cashOut: parseNumeric(r['Cash Out ($)'] ?? r[Object.keys(r)[3]]),
-      netCash: parseNumeric(r['Net Cash This Month ($)'] ?? r[Object.keys(r)[4]]),
-      cumulativeCashIn: parseNumeric(r['Cumulative Cash In ($)'] ?? r[Object.keys(r)[5]]),
-      cumulativeCashOut: parseNumeric(r['Cumulative Cash Out ($)'] ?? r[Object.keys(r)[6]]),
-      countedCash: parseNumeric(r['Counted Cash ($)'] ?? r[Object.keys(r)[7]]),
-      discrepancy: parseNumeric(r['Discrepancy ($)'] ?? r[Object.keys(r)[8]]),
+      month: normalizeMonth(col(r, 'Month')),
+      location: col(r, 'Location'),
+      cashIn: parseNumeric(col(r, 'Cash In')),
+      cashOut: parseNumeric(col(r, 'Cash Out')),
+      netCash: parseNumeric(col(r, 'Net Cash')),
+      cumulativeCashIn: parseNumeric(col(r, 'Cumulative Cash In')),
+      cumulativeCashOut: parseNumeric(col(r, 'Cumulative Cash Out', 'Cumulative Net')),
+      countedCash: parseNumeric(col(r, 'Counted Cash')),
+      discrepancy: parseNumeric(col(r, 'Discrepancy')),
     }),
   };
 
