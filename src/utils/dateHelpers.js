@@ -18,13 +18,19 @@ export function getSameMonthLastYear(yyyymm) {
 
 export function extractYearMonth(dateStr) {
   if (!dateStr) return '';
+  const s = String(dateStr).trim();
   // Handle YYYY-MM already
-  if (/^\d{4}-\d{2}$/.test(dateStr)) return dateStr;
-  // Handle various date formats
-  const d = new Date(dateStr);
+  if (/^\d{4}-\d{2}$/.test(s)) return s;
+  // Handle YYYY-MM-DD directly by string slicing (avoids timezone bugs with new Date())
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 7);
+  // Handle MM/DD/YYYY
+  const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (slash) return `${slash[3]}-${slash[1].padStart(2, '0')}`;
+  // Fallback — use Date but with UTC methods to avoid timezone shift
+  const d = new Date(s);
   if (isNaN(d.getTime())) return '';
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
 }
 
