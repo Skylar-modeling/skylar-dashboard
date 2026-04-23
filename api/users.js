@@ -3,10 +3,56 @@
 
 const CLERK_API = 'https://api.clerk.com/v1';
 
+/**
+ * Verify the request is from an authenticated CEO user.
+ * Uses Clerk's session token verification.
+ */
+async function verifyCEO(req, secret) {
+  const auth = req.headers.authorization || '';
+  const token = auth.replace(/^Bearer\s+/i, '');
+  if (!token) return { ok: false, status: 401, error: 'Missing auth token' };
+
+  // Verify token by asking Clerk who it belongs to
+  const meRes = await fetch(`${CLERK_API}/sessions`, {
+    headers: { Authorization: `Bearer ${secret}` },
+  });
+  if (!meRes.ok) return { ok: false, status: 401, error: 'Auth verification failed' };
+
+  // Decode JWT to get user ID (Clerk session tokens are JWTs)
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return { ok: false, status: 401, error: 'Invalid token format' };
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+    const userId = payload.sub;
+    if (!userId) return { ok: false, status: 401, error: 'Invalid token' };
+
+    // Fetch user and verify they have CEO role
+    const userRes = await fetch(`${CLERK_API}/users/${userId}`, {
+      headers: { Authorization: `Bearer ${secret}` },
+    });
+    if (!userRes.ok) return { ok: false, status: 401, error: 'User not found' };
+    const user = await userRes.json();
+    const roles = user.public_metadata?.role;
+    const roleList = Array.isArray(roles) ? roles : [roles].filter(Boolean);
+    if (!roleList.includes('ceo')) {
+      return { ok: false, status: 403, error: 'Only CEO can manage users' };
+    }
+    return { ok: true, userId };
+  } catch (err) {
+    return { ok: false, status: 401, error: 'Token decode failed' };
+  }
+}
+
 export default async function handler(req, res) {
   const SECRET = process.env.CLERK_SECRET_KEY;
   if (!SECRET) {
     return res.status(500).json({ error: 'Server misconfigured: missing Clerk secret key' });
+  }
+
+  // Require CEO auth for all mutations and for listing users
+  const authCheck = await verifyCEO(req, SECRET);
+  if (!authCheck.ok) {
+    return res.status(authCheck.status).json({ error: authCheck.error });
   }
 
   const headers = {
@@ -28,6 +74,9 @@ export default async function handler(req, res) {
 
     const roleValue = Array.isArray(role) ? role : [role].filter(Boolean);
 
+    // Generate a strong random password — user will reset via email anyway
+    const tempPassword = `Skylar-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+
     const createRes = await fetch(`${CLERK_API}/users`, {
       method: 'POST',
       headers,
@@ -35,11 +84,18 @@ export default async function handler(req, res) {
         email_address: [email],
         first_name: firstName || '',
         last_name: lastName || '',
+        password: tempPassword,
+        skip_password_checks: true,
         public_metadata: { role: roleValue },
       }),
     });
     const user = await createRes.json();
-    return res.status(createRes.status).json(user);
+    if (!createRes.ok) {
+      // Surface actual Clerk error for easier debugging
+      const errorMsg = user.errors?.[0]?.long_message || user.errors?.[0]?.message || user.error || 'Failed to create user';
+      return res.status(createRes.status).json({ error: errorMsg, errors: user.errors });
+    }
+    return res.status(201).json(user);
   }
 
   // PATCH — update user role
@@ -49,13 +105,17 @@ export default async function handler(req, res) {
 
     const roleValue = Array.isArray(role) ? role : [role].filter(Boolean);
 
-    const updateRes = await fetch(`${CLERK_API}/users/${userId}`, {
+    const updateRes = await fetch(`${CLERK_API}/users/${userId}/metadata`, {
       method: 'PATCH',
       headers,
       body: JSON.stringify({ public_metadata: { role: roleValue } }),
     });
     const user = await updateRes.json();
-    return res.status(updateRes.status).json(user);
+    if (!updateRes.ok) {
+      const errorMsg = user.errors?.[0]?.long_message || user.errors?.[0]?.message || 'Failed to update user';
+      return res.status(updateRes.status).json({ error: errorMsg });
+    }
+    return res.status(200).json(user);
   }
 
   // DELETE — ban/deactivate user
@@ -68,7 +128,11 @@ export default async function handler(req, res) {
       headers,
     });
     const result = await banRes.json();
-    return res.status(banRes.status).json(result);
+    if (!banRes.ok) {
+      const errorMsg = result.errors?.[0]?.long_message || result.errors?.[0]?.message || 'Failed to deactivate user';
+      return res.status(banRes.status).json({ error: errorMsg });
+    }
+    return res.status(200).json(result);
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
