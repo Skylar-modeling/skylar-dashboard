@@ -1,46 +1,41 @@
 // Vercel serverless function — proxies Clerk admin API calls
 // so the CLERK_SECRET_KEY stays server-side.
 
+import { verifyToken } from '@clerk/backend';
+
 const CLERK_API = 'https://api.clerk.com/v1';
 
 /**
  * Verify the request is from an authenticated CEO user.
- * Uses Clerk's session token verification.
+ * Uses Clerk's verifyToken to validate the JWT signature.
  */
 async function verifyCEO(req, secret) {
   const auth = req.headers.authorization || '';
   const token = auth.replace(/^Bearer\s+/i, '');
   if (!token) return { ok: false, status: 401, error: 'Missing auth token' };
 
-  // Verify token by asking Clerk who it belongs to
-  const meRes = await fetch(`${CLERK_API}/sessions`, {
+  let payload;
+  try {
+    payload = await verifyToken(token, { secretKey: secret });
+  } catch (err) {
+    return { ok: false, status: 401, error: `Token verification failed: ${err.message}` };
+  }
+
+  const userId = payload?.sub;
+  if (!userId) return { ok: false, status: 401, error: 'Invalid token (no sub)' };
+
+  // Fetch user and verify they have CEO role
+  const userRes = await fetch(`${CLERK_API}/users/${userId}`, {
     headers: { Authorization: `Bearer ${secret}` },
   });
-  if (!meRes.ok) return { ok: false, status: 401, error: 'Auth verification failed' };
-
-  // Decode JWT to get user ID (Clerk session tokens are JWTs)
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return { ok: false, status: 401, error: 'Invalid token format' };
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-    const userId = payload.sub;
-    if (!userId) return { ok: false, status: 401, error: 'Invalid token' };
-
-    // Fetch user and verify they have CEO role
-    const userRes = await fetch(`${CLERK_API}/users/${userId}`, {
-      headers: { Authorization: `Bearer ${secret}` },
-    });
-    if (!userRes.ok) return { ok: false, status: 401, error: 'User not found' };
-    const user = await userRes.json();
-    const roles = user.public_metadata?.role;
-    const roleList = Array.isArray(roles) ? roles : [roles].filter(Boolean);
-    if (!roleList.includes('ceo')) {
-      return { ok: false, status: 403, error: 'Only CEO can manage users' };
-    }
-    return { ok: true, userId };
-  } catch (err) {
-    return { ok: false, status: 401, error: 'Token decode failed' };
+  if (!userRes.ok) return { ok: false, status: 401, error: 'User not found' };
+  const user = await userRes.json();
+  const roles = user.public_metadata?.role;
+  const roleList = Array.isArray(roles) ? roles : [roles].filter(Boolean);
+  if (!roleList.includes('ceo')) {
+    return { ok: false, status: 403, error: 'Only CEO can manage users' };
   }
+  return { ok: true, userId };
 }
 
 export default async function handler(req, res) {
