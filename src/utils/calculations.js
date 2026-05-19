@@ -24,7 +24,8 @@ export function getRevenueSales(data, month, location) {
   let rows = data.STUDENTS_MASTER;
   rows = filterByLocation(rows, location);
   rows = rows.filter((r) => extractYearMonth(r.depositDate) === month);
-  return rows.reduce((sum, r) => sum + r.contractPrice, 0);
+  // Use AK (Recognized Revenue) — cancellation-aware (falls back to Total Collected when Cancelled)
+  return rows.reduce((sum, r) => sum + (r.recognizedRevenue || 0), 0);
 }
 
 export function getSalesCount(data, month, location) {
@@ -116,7 +117,8 @@ export function getRevenueByProgram(data, month, location) {
   const programMap = {};
   rows.forEach((r) => {
     const prog = r.program || 'Unknown';
-    programMap[prog] = (programMap[prog] || 0) + r.contractPrice;
+    // Use AK (Recognized Revenue) instead of M — drops cancelled-student inflation
+    programMap[prog] = (programMap[prog] || 0) + (r.recognizedRevenue || 0);
   });
 
   return Object.entries(programMap).map(([name, value]) => ({ name, value }));
@@ -139,17 +141,11 @@ export function getCollectionRate(data, month, location) {
 }
 
 export function getOutstandingReceivables(data, location) {
-  // All-time revenue - all-time cash collected
-  if (!data?.STUDENTS_MASTER || !data?.PAYMENTS_LOG) return 0;
-  let students = filterByLocation(data.STUDENTS_MASTER, location);
-  let payments = filterByLocation(data.PAYMENTS_LOG, location);
-
-  const totalRevenue = students.reduce((sum, r) => sum + r.contractPrice, 0);
-  const totalCollected = payments
-    .filter((r) => r.paymentStatus === 'Paid')
-    .reduce((sum, r) => sum + r.paymentAmount, 0);
-
-  return totalRevenue - totalCollected;
+  // Sum AL (AdjustedBalanceOwed) — already cancellation-aware (0 when Cancelled, M−W otherwise).
+  // More accurate than (total revenue − total collected) because it ignores cancelled students.
+  if (!data?.STUDENTS_MASTER) return 0;
+  const students = filterByLocation(data.STUDENTS_MASTER, location);
+  return students.reduce((sum, r) => sum + (r.adjustedBalanceOwed || 0), 0);
 }
 
 export function getCashInOffice(data, month) {
@@ -195,7 +191,8 @@ export function getTopSalesReps(data, month, location, limit = 5) {
     if (!rep) return;
     if (!repMap[rep]) repMap[rep] = { name: rep, salesCount: 0, revenueSold: 0 };
     repMap[rep].salesCount++;
-    repMap[rep].revenueSold += r.contractPrice;
+    // Revenue credited to rep = AK (Recognized Revenue), not gross contract value
+    repMap[rep].revenueSold += (r.recognizedRevenue || 0);
   });
 
   // Get commissions from PAYMENTS_LOG

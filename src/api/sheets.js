@@ -89,6 +89,7 @@ function normalizeTabData(key, rows) {
       salesRep1: col(r, 'Sales Rep (Primary)'),
       salesRep2: col(r, 'Sales Rep (Secondary)'),
       splitDeal: col(r, 'Split Deal?'),
+      // contractPrice (col M) = gross contract value sold — use for "Total Contract Value" KPI
       contractPrice: parseNumeric(col(r, 'Contract Price')),
       deposit: parseNumeric(col(r, 'Deposit')),
       depositDate: col(r, 'Deposit Date'),
@@ -97,6 +98,15 @@ function normalizeTabData(key, rows) {
       stripeCustomerId: col(r, 'Stripe Customer ID'),
       stripeSubId: col(r, 'Stripe Sub ID'),
       stripeStatus: col(r, 'Stripe Status'),
+      // col W — total collected from Stripe + manual payments
+      totalCollected: parseNumeric(col(r, 'Total Collected')),
+      // col AI — enrollment status drives cancellation-aware AK / AL formulas
+      enrollmentStatus: col(r, 'Enrollment Status'),
+      cancellationDate: col(r, 'Cancellation Date'),
+      // col AK — Recognized Revenue: Contract Price normally, falls back to Total Collected when Cancelled
+      recognizedRevenue: parseNumeric(col(r, 'Recognized Revenue')),
+      // col AL — AdjustedBalanceOwed: 0 when Cancelled, otherwise Contract Price − Total Collected
+      adjustedBalanceOwed: parseNumeric(col(r, 'AdjustedBalanceOwed', 'Adjusted Balance Owed')),
     }),
     ACTUALIZED_REVENUE: (r) => ({
       month: normalizeMonth(col(r, 'Month')),

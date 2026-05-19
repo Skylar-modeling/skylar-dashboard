@@ -142,7 +142,8 @@ export function getRepClients(data, repName, month) {
       location: s.location,
       contractPrice: s.contractPrice,
       totalPaid,
-      outstanding: Math.max(0, s.contractPrice - totalPaid),
+      // Prefer AL (AdjustedBalanceOwed) — cancellation-aware. contractPrice (M) stays as the "Contract" column for gross sold.
+      outstanding: s.adjustedBalanceOwed != null ? s.adjustedBalanceOwed : Math.max(0, s.contractPrice - totalPaid),
       failedCount,
       refundedCount,
       lastPaymentDate: lastPayment?.paymentDate || null,
@@ -193,7 +194,8 @@ export function getRepAllClients(data, repName) {
       location: s.location,
       contractPrice: s.contractPrice,
       totalPaid,
-      outstanding: Math.max(0, s.contractPrice - totalPaid),
+      // Prefer AL (AdjustedBalanceOwed) — cancellation-aware. contractPrice (M) stays as the "Contract" column for gross sold.
+      outstanding: s.adjustedBalanceOwed != null ? s.adjustedBalanceOwed : Math.max(0, s.contractPrice - totalPaid),
       failedCount,
       refundedCount,
       lastPaymentDate: lastPayment?.paymentDate || null,

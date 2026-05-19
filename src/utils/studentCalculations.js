@@ -9,7 +9,8 @@ export function getStudentRecord(data, student) {
     return {
       ...student,
       amountPaid: 0,
-      amountOutstanding: student.contractPrice,
+      // Prefer AL (AdjustedBalanceOwed) — cancellation-aware. Falls back to contract price for old data.
+      amountOutstanding: student.adjustedBalanceOwed != null ? student.adjustedBalanceOwed : student.contractPrice,
       lateFees: 0,
       failedPayments: 0,
       payments: [],
@@ -37,7 +38,11 @@ export function getStudentRecord(data, student) {
   const amountPaid = successfulPayments.reduce((sum, p) => sum + p.paymentAmount, 0);
   const refundedAmount = refundedPayments.reduce((sum, p) => sum + p.paymentAmount, 0);
   const netPaid = amountPaid - refundedAmount;
-  const amountOutstanding = Math.max(0, student.contractPrice - netPaid);
+  // Use AL (AdjustedBalanceOwed) — 0 when student is Cancelled, M−W otherwise.
+  // Falls back to the derived calc if the sheet column hasn't been populated yet.
+  const amountOutstanding = student.adjustedBalanceOwed != null
+    ? student.adjustedBalanceOwed
+    : Math.max(0, student.contractPrice - netPaid);
 
   return {
     ...student,

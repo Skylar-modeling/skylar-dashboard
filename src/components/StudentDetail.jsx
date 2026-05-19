@@ -61,6 +61,7 @@ export default function StudentDetail({ student, onClose }) {
 
           {/* Financial Summary */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* Contract Price = gross contract value sold (col M). Distinct from Recognized Revenue (AK). Keep on M. */}
             <FinanceCard
               label="Contract Price"
               value={formatCurrency(student.contractPrice)}
