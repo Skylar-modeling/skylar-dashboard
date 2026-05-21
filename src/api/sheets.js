@@ -107,6 +107,8 @@ function normalizeTabData(key, rows) {
       recognizedRevenue: parseNumeric(col(r, 'Recognized Revenue')),
       // col AL — AdjustedBalanceOwed: 0 when Cancelled, otherwise Contract Price − Total Collected
       adjustedBalanceOwed: parseNumeric(col(r, 'AdjustedBalanceOwed', 'Adjusted Balance Owed')),
+      // col AM — Channel the enrollment came through ("In-Person" | "Phone Calls" | "Zoom" | "Call Lead" | blank)
+      channel: col(r, 'Channel'),
     }),
     ACTUALIZED_REVENUE: (r) => ({
       month: normalizeMonth(col(r, 'Month')),

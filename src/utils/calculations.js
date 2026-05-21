@@ -263,22 +263,41 @@ export function getSalesOperations(data, month, location) {
 
 /**
  * Break the sales funnel out by channel (In-Person / Phone Calls / Zoom)
- * for a month + location. Ignores legacy blank-Appt-Type rows so they
- * don't double-count. Rates are computed from summed counts.
- * Returns { channels: [...], total: {...} } or null if no channel data.
+ * for a month + location.
+ *
+ * Data join:
+ *  - Appts Scheduled + Show-Ups come from DAILY_SALES_LOG (rep-logged activity)
+ *  - Enrollments come from STUDENTS_MASTER — a COUNT of real closed sales whose
+ *    Channel (col AM) matches, joined by Channel + Month (Deposit Date) + Location.
+ *    DAILY_SALES_LOG's own Enrollments column is NOT used — it lags.
+ *
+ * Rates are period-basis: enrollments closed in the month ÷ activity in the month
+ * (not attributed to specific appointments). Divide-by-zero yields null ("—").
+ * "Call Lead" and blank-Channel students are excluded (only the 3 named channels).
+ *
+ * Returns { channels: [...], total: {...} } or null if no channel has activity.
  */
 export function getSalesByChannel(data, month, location) {
-  if (!data?.DAILY_SALES_LOG || data.DAILY_SALES_LOG.length === 0) return null;
-  let rows = filterByLocation(data.DAILY_SALES_LOG, location);
-  rows = rows.filter((r) => r.month === month);
-  // Rule: ignore rows with a blank Appt Type — those are legacy summarized rows.
-  rows = rows.filter((r) => r.apptType && r.apptType.trim() !== '');
-  if (rows.length === 0) return null;
+  // DAILY_SALES_LOG — appointment activity for the month/location
+  const dailyRows = data?.DAILY_SALES_LOG
+    ? filterByLocation(data.DAILY_SALES_LOG, location).filter((r) => r.month === month)
+    : [];
 
-  const buildRow = (name, subset) => {
-    const scheduled = subset.reduce((s, r) => s + r.apptsScheduled, 0);
-    const showUps = subset.reduce((s, r) => s + r.showUps, 0);
-    const enrollments = subset.reduce((s, r) => s + r.enrollments, 0);
+  // STUDENTS_MASTER — real enrollments, matched by Deposit Date month
+  const students = data?.STUDENTS_MASTER
+    ? filterByLocation(data.STUDENTS_MASTER, location)
+        .filter((s) => extractYearMonth(s.depositDate) === month)
+    : [];
+
+  const matchChannel = (val, name) => (val || '').trim().toLowerCase() === name.toLowerCase();
+
+  const buildRow = (name) => {
+    // Scheduled + Show-Ups from DAILY_SALES_LOG
+    const dl = dailyRows.filter((r) => matchChannel(r.apptType, name));
+    const scheduled = dl.reduce((s, r) => s + r.apptsScheduled, 0);
+    const showUps = dl.reduce((s, r) => s + r.showUps, 0);
+    // Enrollments = count of STUDENTS_MASTER rows for this channel (real sales)
+    const enrollments = students.filter((s) => matchChannel(s.channel, name)).length;
     return {
       channel: name,
       scheduled,
@@ -290,24 +309,27 @@ export function getSalesByChannel(data, month, location) {
     };
   };
 
-  // One row per known channel; match case-insensitively on Appt Type
-  const channels = SALES_CHANNELS.map((name) => {
-    const subset = rows.filter(
-      (r) => r.apptType.trim().toLowerCase() === name.toLowerCase()
-    );
-    return buildRow(name, subset);
-  }).filter((c) => c.scheduled > 0 || c.showUps > 0 || c.enrollments > 0);
-
-  // Catch any channel value not in the known list (defensive)
-  const knownLower = SALES_CHANNELS.map((c) => c.toLowerCase());
-  const otherRows = rows.filter((r) => !knownLower.includes(r.apptType.trim().toLowerCase()));
-  if (otherRows.length > 0) {
-    channels.push(buildRow('Other', otherRows));
-  }
+  const channels = SALES_CHANNELS.map(buildRow)
+    .filter((c) => c.scheduled > 0 || c.showUps > 0 || c.enrollments > 0);
 
   if (channels.length === 0) return null;
 
-  return { channels, total: buildRow('Total', rows) };
+  // Total = aggregate of the displayed channels; rates recomputed from sums
+  const sum = (key) => channels.reduce((s, c) => s + c[key], 0);
+  const tScheduled = sum('scheduled');
+  const tShowUps = sum('showUps');
+  const tEnrollments = sum('enrollments');
+  const total = {
+    channel: 'Total',
+    scheduled: tScheduled,
+    showUps: tShowUps,
+    enrollments: tEnrollments,
+    showUpRate: tScheduled > 0 ? (tShowUps / tScheduled) * 100 : null,
+    closeRateVsShowed: tShowUps > 0 ? (tEnrollments / tShowUps) * 100 : null,
+    closeRateVsScheduled: tScheduled > 0 ? (tEnrollments / tScheduled) * 100 : null,
+  };
+
+  return { channels, total };
 }
 
 // ─── Section 8: Revenue Trend ───
