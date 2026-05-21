@@ -9,6 +9,7 @@ import MonthSelector from '../components/MonthSelector';
 import ChartCard from '../components/ChartCard';
 import DataTable from '../components/DataTable';
 import EmptyState from '../components/EmptyState';
+import SalesByChannel from '../components/SalesByChannel';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
 import { getCurrentMonth, getPreviousMonth, getSameMonthLastYear, getAvailableMonths, getLast6Months, getYTDMonths, formatMonthDisplay } from '../utils/dateHelpers';
@@ -18,7 +19,7 @@ import {
   getTotalExpenses, getProfit, getProfitMargin, getExpenseToRevenueRatio,
   getAdSpend, getROAS, getCPA, getRevenueByProgram,
   getCashCollected, getCollectionRate, getOutstandingReceivables, getCashInOffice,
-  getTopSalesReps, getTotalCommissionOwed, getSalesOperations, getRevenueTrend,
+  getTopSalesReps, getTotalCommissionOwed, getSalesOperations, getSalesByChannel, getRevenueTrend,
   calcChange,
 } from '../utils/calculations';
 
@@ -131,6 +132,7 @@ export default function CEODashboard() {
   const cashInOffice = useMemo(() => data ? getCashInOffice(data, month) : null, [data, month]);
   const topReps = useMemo(() => data ? getTopSalesReps(data, month, location) : [], [data, month, location]);
   const salesOps = useMemo(() => data ? getSalesOperations(data, month, location) : null, [data, month, location]);
+  const salesByChannel = useMemo(() => data ? getSalesByChannel(data, month, location) : null, [data, month, location]);
   const trendData = useMemo(() => {
     if (!data) return [];
     const months = getLast6Months(month);
@@ -422,7 +424,11 @@ export default function CEODashboard() {
         />
       )}
 
-      {/* Section 8: Revenue Trend */}
+      {/* Section 8: Sales Activity by Channel */}
+      <SectionTitle>Sales Activity by Channel</SectionTitle>
+      <SalesByChannel data={salesByChannel} />
+
+      {/* Section 9: Revenue Trend */}
       <SectionTitle>Revenue Trend (6 Months)</SectionTitle>
       {trendData.length > 0 ? (
         <ChartCard>

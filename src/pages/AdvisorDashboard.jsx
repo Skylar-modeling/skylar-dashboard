@@ -5,13 +5,14 @@ import MetricCard, { MetricCardSkeleton } from '../components/MetricCard';
 import MonthSelector from '../components/MonthSelector';
 import DataTable from '../components/DataTable';
 import EmptyState from '../components/EmptyState';
+import SalesByChannel from '../components/SalesByChannel';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS } from '../config/constants';
 import {
-  getCurrentMonth, getPreviousMonth, getAvailableMonths, formatMonthDisplay,
+  getCurrentMonth, getPreviousMonth, getAvailableMonths,
 } from '../utils/dateHelpers';
 import { formatNumber, formatPercent } from '../utils/formatters';
-import { getSalesOperations, calcChange } from '../utils/calculations';
+import { getSalesOperations, getSalesByChannel, calcChange } from '../utils/calculations';
 
 function SectionTitle({ children }) {
   return <h2 className="text-base font-semibold text-[var(--color-text-primary)] mt-8 mb-4">{children}</h2>;
@@ -56,6 +57,7 @@ export default function AdvisorDashboard() {
 
   const salesOps = useMemo(() => data ? getSalesOperations(data, month, location) : null, [data, month, location]);
   const prevSalesOps = useMemo(() => data ? getSalesOperations(data, prevMonth, location) : null, [data, prevMonth, location]);
+  const salesByChannel = useMemo(() => data ? getSalesByChannel(data, month, location) : null, [data, month, location]);
 
   const repRanking = useMemo(() => data ? getRepRanking(data, month, location) : [], [data, month, location]);
 
@@ -117,7 +119,11 @@ export default function AdvisorDashboard() {
         />
       )}
 
-      {/* Section 2: Sales Rep Ranking */}
+      {/* Section 2: Sales Activity by Channel */}
+      <SectionTitle>Sales Activity by Channel</SectionTitle>
+      <SalesByChannel data={salesByChannel} />
+
+      {/* Section 3: Sales Rep Ranking */}
       <SectionTitle>Sales Rep Ranking</SectionTitle>
       {repRanking.length > 0 ? (
         <DataTable

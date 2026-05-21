@@ -223,21 +223,31 @@ export function getTotalCommissionOwed(data, month, location) {
 
 // ─── Section 7: Sales Operations ───
 
+// The three sales channels logged in DAILY_SALES_LOG (col D / Appt Type).
+export const SALES_CHANNELS = ['In-Person', 'Phone Calls', 'Zoom'];
+
+/**
+ * Get DAILY_SALES_LOG rows for a month + location.
+ * Resolves the legacy/channel mix: if ANY channel rows (non-blank Appt Type)
+ * exist for the month, only those are returned — otherwise the legacy
+ * summarized rows (blank Appt Type) are returned. This prevents the
+ * transition month from double-counting while keeping old months visible.
+ */
+function getDailySalesRows(data, month, location) {
+  if (!data?.DAILY_SALES_LOG || data.DAILY_SALES_LOG.length === 0) return [];
+  let rows = filterByLocation(data.DAILY_SALES_LOG, location);
+  rows = rows.filter((r) => r.month === month);
+  if (rows.length === 0) return [];
+
+  const channelRows = rows.filter((r) => r.apptType && r.apptType.trim() !== '');
+  return channelRows.length > 0 ? channelRows : rows;
+}
+
 export function getSalesOperations(data, month, location) {
-  if (!data?.DAILY_SALES_LOG || data.DAILY_SALES_LOG.length === 0) return null;
-
-  let rows = data.DAILY_SALES_LOG;
-  rows = filterByLocation(rows, location);
-
-  // Filter by month — use the month column if available, else try extracting from shiftDate
-  rows = rows.filter((r) => {
-    if (r.month && r.month === month) return true;
-    if (r.shiftDate) return extractYearMonth(r.shiftDate) === month;
-    return false;
-  });
-
+  const rows = getDailySalesRows(data, month, location);
   if (rows.length === 0) return null;
 
+  // Aggregate from summed counts — never average per-row rate columns
   const appts = rows.reduce((s, r) => s + r.apptsScheduled, 0);
   const showUps = rows.reduce((s, r) => s + r.showUps, 0);
   const noShows = rows.reduce((s, r) => s + r.noShows, 0);
@@ -249,6 +259,55 @@ export function getSalesOperations(data, month, location) {
     closeRate: showUps > 0 ? (enrollments / showUps) * 100 : null,
     noShowRate: appts > 0 ? (noShows / appts) * 100 : null,
   };
+}
+
+/**
+ * Break the sales funnel out by channel (In-Person / Phone Calls / Zoom)
+ * for a month + location. Ignores legacy blank-Appt-Type rows so they
+ * don't double-count. Rates are computed from summed counts.
+ * Returns { channels: [...], total: {...} } or null if no channel data.
+ */
+export function getSalesByChannel(data, month, location) {
+  if (!data?.DAILY_SALES_LOG || data.DAILY_SALES_LOG.length === 0) return null;
+  let rows = filterByLocation(data.DAILY_SALES_LOG, location);
+  rows = rows.filter((r) => r.month === month);
+  // Rule: ignore rows with a blank Appt Type — those are legacy summarized rows.
+  rows = rows.filter((r) => r.apptType && r.apptType.trim() !== '');
+  if (rows.length === 0) return null;
+
+  const buildRow = (name, subset) => {
+    const scheduled = subset.reduce((s, r) => s + r.apptsScheduled, 0);
+    const showUps = subset.reduce((s, r) => s + r.showUps, 0);
+    const enrollments = subset.reduce((s, r) => s + r.enrollments, 0);
+    return {
+      channel: name,
+      scheduled,
+      showUps,
+      enrollments,
+      showUpRate: scheduled > 0 ? (showUps / scheduled) * 100 : null,
+      closeRateVsShowed: showUps > 0 ? (enrollments / showUps) * 100 : null,
+      closeRateVsScheduled: scheduled > 0 ? (enrollments / scheduled) * 100 : null,
+    };
+  };
+
+  // One row per known channel; match case-insensitively on Appt Type
+  const channels = SALES_CHANNELS.map((name) => {
+    const subset = rows.filter(
+      (r) => r.apptType.trim().toLowerCase() === name.toLowerCase()
+    );
+    return buildRow(name, subset);
+  }).filter((c) => c.scheduled > 0 || c.showUps > 0 || c.enrollments > 0);
+
+  // Catch any channel value not in the known list (defensive)
+  const knownLower = SALES_CHANNELS.map((c) => c.toLowerCase());
+  const otherRows = rows.filter((r) => !knownLower.includes(r.apptType.trim().toLowerCase()));
+  if (otherRows.length > 0) {
+    channels.push(buildRow('Other', otherRows));
+  }
+
+  if (channels.length === 0) return null;
+
+  return { channels, total: buildRow('Total', rows) };
 }
 
 // ─── Section 8: Revenue Trend ───

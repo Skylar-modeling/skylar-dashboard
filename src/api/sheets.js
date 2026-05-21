@@ -149,7 +149,11 @@ function normalizeTabData(key, rows) {
       timestamp: col(r, 'Timestamp'),
       salesRep: col(r, 'Sales Rep'),
       location: col(r, 'Location'),
+      // apptType (col D) = channel: "In-Person" | "Phone Calls" | "Zoom".
+      // Blank = legacy pre-change summarized row (one row per day, not per channel).
       apptType: col(r, 'Appt Type'),
+      // Pre-lowercased channel from col R — used for grouping
+      apptTypeNormalized: col(r, 'Appt Type (Normalized)', 'Appt Type Normalized'),
       shiftDate: col(r, 'Shift Date'),
       apptsScheduled: parseNumeric(col(r, 'Appts Scheduled')),
       showUps: parseNumeric(col(r, 'Show-Ups', 'Show Ups')),
@@ -158,7 +162,9 @@ function normalizeTabData(key, rows) {
       cancellations: parseNumeric(col(r, 'Cancellations')),
       depositCollected: parseNumeric(col(r, 'Deposit Collected')),
       notes: col(r, 'Notes'),
-      month: normalizeMonth(col(r, 'Shift Date')),
+      week: parseNumeric(col(r, 'Week')),
+      // Prefer the explicit Month column (col P); fall back to deriving from Shift Date
+      month: normalizeMonth(col(r, 'Month')) || normalizeMonth(col(r, 'Shift Date')),
     }),
     COMMISSION_MONTHLY: (r) => ({
       salesRep: col(r, 'Sales Rep'),

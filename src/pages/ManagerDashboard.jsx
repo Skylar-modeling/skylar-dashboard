@@ -9,6 +9,7 @@ import MetricCard, { MetricCardSkeleton } from '../components/MetricCard';
 import MonthSelector from '../components/MonthSelector';
 import ChartCard from '../components/ChartCard';
 import EmptyState from '../components/EmptyState';
+import SalesByChannel from '../components/SalesByChannel';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
 import {
@@ -21,7 +22,7 @@ import {
   getTotalExpenses, getProfit, getProfitMargin, getExpenseToRevenueRatio,
   getAdSpend, getROAS, getCPA, getRevenueByProgram,
   getCashCollected, getCollectionRate, getOutstandingReceivables, getCashInOffice,
-  getSalesOperations, getRevenueTrend, calcChange,
+  getSalesOperations, getSalesByChannel, getRevenueTrend, calcChange,
 } from '../utils/calculations';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -94,6 +95,7 @@ export default function ManagerDashboard() {
 
   const programData = useMemo(() => data ? getRevenueByProgram(data, month, location) : [], [data, month, location]);
   const salesOps = useMemo(() => data ? getSalesOperations(data, month, location) : null, [data, month, location]);
+  const salesByChannel = useMemo(() => data ? getSalesByChannel(data, month, location) : null, [data, month, location]);
   const cashInOffice = useMemo(() => data ? getCashInOffice(data, month) : null, [data, month]);
 
   const locationCash = useMemo(() => {
@@ -348,7 +350,11 @@ export default function ManagerDashboard() {
         />
       )}
 
-      {/* Section 7: Revenue Trend */}
+      {/* Section 7: Sales Activity by Channel */}
+      <SectionTitle>Sales Activity by Channel</SectionTitle>
+      <SalesByChannel data={salesByChannel} />
+
+      {/* Section 8: Revenue Trend */}
       <SectionTitle>Revenue Trend (6 Months)</SectionTitle>
       {trendData.length > 0 ? (
         <ChartCard>
