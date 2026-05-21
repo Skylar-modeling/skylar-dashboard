@@ -3,32 +3,48 @@ import {
 } from 'recharts';
 import ChartCard from './ChartCard';
 import EmptyState from './EmptyState';
+import ComparisonBadge from './ComparisonBadge';
 import { formatNumber, formatPercent } from '../utils/formatters';
+import { calcChange } from '../utils/calculations';
 import { CHART_COLORS } from '../config/constants';
 
 function pct(v) {
   return v != null ? formatPercent(v) : '—';
 }
 
-const ChannelTooltip = ({ active, payload, label }) => {
+const RateTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-3 text-xs shadow-lg">
       <p className="text-[var(--color-text-secondary)] mb-1">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} style={{ color: entry.color }} className="font-medium">
-          {entry.name}: {formatNumber(entry.value)}
+          {entry.name}: {entry.value != null ? formatPercent(entry.value) : '—'}
         </p>
       ))}
     </div>
   );
 };
 
+// Table cell: value on top, month-over-month comparison badge underneath
+function Cell({ value, change }) {
+  return (
+    <td className="py-2 px-3 text-right align-top">
+      <div className="text-[var(--color-text-primary)]">{value}</div>
+      <div className="mt-1 flex justify-end">
+        <ComparisonBadge value={change} />
+      </div>
+    </td>
+  );
+}
+
 /**
  * Sales Activity by Channel — table + bar chart.
- * `data` is the result of getSalesByChannel(): { channels: [...], total: {...} } or null.
+ * `data`     = getSalesByChannel() for the selected month: { channels, total } | null
+ * `prevData` = getSalesByChannel() for the comparison month: same shape | null
+ *              (drives the % change trend under each value)
  */
-export default function SalesByChannel({ data }) {
+export default function SalesByChannel({ data, prevData }) {
   if (!data || !data.channels?.length) {
     return (
       <EmptyState
@@ -39,11 +55,16 @@ export default function SalesByChannel({ data }) {
   }
 
   const { channels, total } = data;
+  const prevChannel = (name) => prevData?.channels?.find((c) => c.channel === name) || null;
+  const prevTotal = prevData?.total || null;
+
+  const rows = channels.map((c) => ({ cur: c, prev: prevChannel(c.channel) }));
+
+  // Chart: show-up rate and close rate as percentages, per channel
   const chartData = channels.map((c) => ({
     channel: c.channel,
-    Scheduled: c.scheduled,
-    'Show-Ups': c.showUps,
-    Enrollments: c.enrollments,
+    'Show-Up Rate': c.showUpRate,
+    'Close Rate': c.closeRateVsShowed,
   }));
 
   return (
@@ -54,51 +75,41 @@ export default function SalesByChannel({ data }) {
             <thead>
               <tr className="border-b border-[var(--color-border)]">
                 <th className="text-left py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">Channel</th>
-                <th className="text-right py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">Sched.</th>
-                <th className="text-right py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">Shows</th>
-                <th className="text-right py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">Enroll.</th>
-                <th className="text-right py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">Show %</th>
-                <th className="text-right py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">Close/Show</th>
-                <th className="text-right py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">Close/Sched</th>
+                <th className="text-right py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">Appts Scheduled</th>
+                <th className="text-right py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">Show-Up Rate</th>
+                <th className="text-right py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">Close Rate</th>
               </tr>
             </thead>
             <tbody>
-              {channels.map((c) => (
-                <tr key={c.channel} className="border-b border-[var(--color-border)]/50">
-                  <td className="py-2 px-3 text-[var(--color-text-primary)]">{c.channel}</td>
-                  <td className="py-2 px-3 text-right text-[var(--color-text-primary)]">{formatNumber(c.scheduled)}</td>
-                  <td className="py-2 px-3 text-right text-[var(--color-text-primary)]">{formatNumber(c.showUps)}</td>
-                  <td className="py-2 px-3 text-right text-[var(--color-text-primary)]">{formatNumber(c.enrollments)}</td>
-                  <td className="py-2 px-3 text-right text-[var(--color-text-secondary)]">{pct(c.showUpRate)}</td>
-                  <td className="py-2 px-3 text-right text-[var(--color-text-secondary)]">{pct(c.closeRateVsShowed)}</td>
-                  <td className="py-2 px-3 text-right text-[var(--color-text-secondary)]">{pct(c.closeRateVsScheduled)}</td>
+              {rows.map(({ cur, prev }) => (
+                <tr key={cur.channel} className="border-b border-[var(--color-border)]/50">
+                  <td className="py-2 px-3 text-[var(--color-text-primary)] align-top">{cur.channel}</td>
+                  <Cell value={formatNumber(cur.scheduled)} change={prev ? calcChange(cur.scheduled, prev.scheduled) : null} />
+                  <Cell value={pct(cur.showUpRate)} change={prev ? calcChange(cur.showUpRate, prev.showUpRate) : null} />
+                  <Cell value={pct(cur.closeRateVsShowed)} change={prev ? calcChange(cur.closeRateVsShowed, prev.closeRateVsShowed) : null} />
                 </tr>
               ))}
               <tr className="border-t border-[var(--color-border)] font-semibold">
-                <td className="py-2 px-3 text-[var(--color-text-primary)]">{total.channel}</td>
-                <td className="py-2 px-3 text-right text-[var(--color-text-primary)]">{formatNumber(total.scheduled)}</td>
-                <td className="py-2 px-3 text-right text-[var(--color-text-primary)]">{formatNumber(total.showUps)}</td>
-                <td className="py-2 px-3 text-right text-[var(--color-text-primary)]">{formatNumber(total.enrollments)}</td>
-                <td className="py-2 px-3 text-right text-[var(--color-text-primary)]">{pct(total.showUpRate)}</td>
-                <td className="py-2 px-3 text-right text-[var(--color-text-primary)]">{pct(total.closeRateVsShowed)}</td>
-                <td className="py-2 px-3 text-right text-[var(--color-text-primary)]">{pct(total.closeRateVsScheduled)}</td>
+                <td className="py-2 px-3 text-[var(--color-text-primary)] align-top">{total.channel}</td>
+                <Cell value={formatNumber(total.scheduled)} change={prevTotal ? calcChange(total.scheduled, prevTotal.scheduled) : null} />
+                <Cell value={pct(total.showUpRate)} change={prevTotal ? calcChange(total.showUpRate, prevTotal.showUpRate) : null} />
+                <Cell value={pct(total.closeRateVsShowed)} change={prevTotal ? calcChange(total.closeRateVsShowed, prevTotal.closeRateVsShowed) : null} />
               </tr>
             </tbody>
           </table>
         </div>
       </ChartCard>
 
-      <ChartCard title="Channel Comparison">
+      <ChartCard title="Show-Up & Close Rate by Channel">
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={chartData} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
             <XAxis dataKey="channel" stroke="var(--color-text-muted)" fontSize={12} />
-            <YAxis stroke="var(--color-text-muted)" fontSize={12} />
-            <Tooltip content={<ChannelTooltip />} cursor={{ fill: 'var(--color-border)', opacity: 0.3 }} />
+            <YAxis stroke="var(--color-text-muted)" fontSize={12} tickFormatter={(v) => `${v}%`} />
+            <Tooltip content={<RateTooltip />} cursor={{ fill: 'var(--color-border)', opacity: 0.3 }} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="Scheduled" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Show-Ups" fill={CHART_COLORS.secondary} radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Enrollments" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Show-Up Rate" fill={CHART_COLORS.secondary} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Close Rate" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>

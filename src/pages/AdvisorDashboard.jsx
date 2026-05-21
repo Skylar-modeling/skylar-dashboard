@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout';
-import MetricCard, { MetricCardSkeleton } from '../components/MetricCard';
+import { MetricCardSkeleton } from '../components/MetricCard';
 import MonthSelector from '../components/MonthSelector';
 import DataTable from '../components/DataTable';
 import EmptyState from '../components/EmptyState';
@@ -11,8 +11,7 @@ import { LOCATIONS } from '../config/constants';
 import {
   getCurrentMonth, getPreviousMonth, getAvailableMonths,
 } from '../utils/dateHelpers';
-import { formatNumber, formatPercent } from '../utils/formatters';
-import { getSalesOperations, getSalesByChannel, calcChange } from '../utils/calculations';
+import { getSalesByChannel } from '../utils/calculations';
 
 function SectionTitle({ children }) {
   return <h2 className="text-base font-semibold text-[var(--color-text-primary)] mt-8 mb-4">{children}</h2>;
@@ -55,9 +54,8 @@ export default function AdvisorDashboard() {
   const month = selectedMonth || getCurrentMonth();
   const prevMonth = getPreviousMonth(month);
 
-  const salesOps = useMemo(() => data ? getSalesOperations(data, month, location) : null, [data, month, location]);
-  const prevSalesOps = useMemo(() => data ? getSalesOperations(data, prevMonth, location) : null, [data, prevMonth, location]);
   const salesByChannel = useMemo(() => data ? getSalesByChannel(data, month, location) : null, [data, month, location]);
+  const prevSalesByChannel = useMemo(() => data ? getSalesByChannel(data, prevMonth, location) : null, [data, prevMonth, location]);
 
   const repRanking = useMemo(() => data ? getRepRanking(data, month, location) : [], [data, month, location]);
 
@@ -87,43 +85,11 @@ export default function AdvisorDashboard() {
         <MonthSelector months={availableMonths.length > 0 ? availableMonths : [getCurrentMonth()]} selected={month} onChange={setSelectedMonth} />
       </div>
 
-      {/* Section 1: Sales Operations */}
-      <SectionTitle>Sales Operations</SectionTitle>
-      {salesOps ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            label="Appointments Scheduled"
-            value={formatNumber(salesOps.appointmentsScheduled)}
-            comparison={prevSalesOps ? calcChange(salesOps.appointmentsScheduled, prevSalesOps.appointmentsScheduled) : null}
-          />
-          <MetricCard
-            label="Show-Up Rate"
-            value={salesOps.showUpRate != null ? formatPercent(salesOps.showUpRate) : 'N/A'}
-            comparison={prevSalesOps?.showUpRate != null ? calcChange(salesOps.showUpRate, prevSalesOps.showUpRate) : null}
-          />
-          <MetricCard
-            label="Close Rate"
-            value={salesOps.closeRate != null ? formatPercent(salesOps.closeRate) : 'N/A'}
-            comparison={prevSalesOps?.closeRate != null ? calcChange(salesOps.closeRate, prevSalesOps.closeRate) : null}
-          />
-          <MetricCard
-            label="No-Show Rate"
-            value={salesOps.noShowRate != null ? formatPercent(salesOps.noShowRate) : 'N/A'}
-            comparison={prevSalesOps?.noShowRate != null ? calcChange(salesOps.noShowRate, prevSalesOps.noShowRate) : null}
-          />
-        </div>
-      ) : (
-        <EmptyState
-          title="No sales activity data"
-          message="Sales activity data is not yet available. This section will populate automatically once daily operations data starts flowing from Airtable."
-        />
-      )}
-
-      {/* Section 2: Sales Activity by Channel */}
+      {/* Section 1: Sales Activity by Channel */}
       <SectionTitle>Sales Activity by Channel</SectionTitle>
-      <SalesByChannel data={salesByChannel} />
+      <SalesByChannel data={salesByChannel} prevData={prevSalesByChannel} />
 
-      {/* Section 3: Sales Rep Ranking */}
+      {/* Section 2: Sales Rep Ranking */}
       <SectionTitle>Sales Rep Ranking</SectionTitle>
       {repRanking.length > 0 ? (
         <DataTable

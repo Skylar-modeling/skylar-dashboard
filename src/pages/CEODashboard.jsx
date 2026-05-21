@@ -19,7 +19,7 @@ import {
   getTotalExpenses, getProfit, getProfitMargin, getExpenseToRevenueRatio,
   getAdSpend, getROAS, getCPA, getRevenueByProgram,
   getCashCollected, getCollectionRate, getOutstandingReceivables, getCashInOffice,
-  getTopSalesReps, getTotalCommissionOwed, getSalesOperations, getSalesByChannel, getRevenueTrend,
+  getTopSalesReps, getTotalCommissionOwed, getSalesByChannel, getRevenueTrend,
   calcChange,
 } from '../utils/calculations';
 
@@ -131,8 +131,8 @@ export default function CEODashboard() {
   const programData = useMemo(() => data ? getRevenueByProgram(data, month, location) : [], [data, month, location]);
   const cashInOffice = useMemo(() => data ? getCashInOffice(data, month) : null, [data, month]);
   const topReps = useMemo(() => data ? getTopSalesReps(data, month, location) : [], [data, month, location]);
-  const salesOps = useMemo(() => data ? getSalesOperations(data, month, location) : null, [data, month, location]);
   const salesByChannel = useMemo(() => data ? getSalesByChannel(data, month, location) : null, [data, month, location]);
+  const prevSalesByChannel = useMemo(() => data ? getSalesByChannel(data, compMonth, location) : null, [data, compMonth, location]);
   const trendData = useMemo(() => {
     if (!data) return [];
     const months = getLast6Months(month);
@@ -408,27 +408,11 @@ export default function CEODashboard() {
         )}
       </ChartCard>
 
-      {/* Section 7: Sales Operations */}
-      <SectionTitle>Sales Operations</SectionTitle>
-      {salesOps ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard label="Appointments Scheduled" value={formatNumber(salesOps.appointmentsScheduled)} />
-          <MetricCard label="Show-Up Rate" value={salesOps.showUpRate != null ? formatPercent(salesOps.showUpRate) : 'N/A'} />
-          <MetricCard label="Close Rate" value={salesOps.closeRate != null ? formatPercent(salesOps.closeRate) : 'N/A'} />
-          <MetricCard label="No-Show Rate" value={salesOps.noShowRate != null ? formatPercent(salesOps.noShowRate) : 'N/A'} />
-        </div>
-      ) : (
-        <EmptyState
-          title="No sales activity data"
-          message="Sales activity data is not yet available. This section will populate automatically once daily operations data starts flowing from Airtable."
-        />
-      )}
-
-      {/* Section 8: Sales Activity by Channel */}
+      {/* Section 7: Sales Activity by Channel */}
       <SectionTitle>Sales Activity by Channel</SectionTitle>
-      <SalesByChannel data={salesByChannel} />
+      <SalesByChannel data={salesByChannel} prevData={prevSalesByChannel} />
 
-      {/* Section 9: Revenue Trend */}
+      {/* Section 8: Revenue Trend */}
       <SectionTitle>Revenue Trend (6 Months)</SectionTitle>
       {trendData.length > 0 ? (
         <ChartCard>
