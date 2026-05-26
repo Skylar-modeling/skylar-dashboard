@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SignIn, useUser } from '@clerk/clerk-react';
-import { getAllowedPaths, CLERK_PUBLISHABLE_KEY } from '../config/constants';
+import StudentSearch from './StudentSearch';
+import { useSheetData } from '../hooks/useSheetData';
+import { getAllowedPaths, getDefaultLocationFilter, CLERK_PUBLISHABLE_KEY } from '../config/constants';
 
 const chartIcon = (
   <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -100,10 +102,14 @@ export default function RoleSelector() {
 function AuthenticatedSelector() {
   const navigate = useNavigate();
   const { isLoaded, isSignedIn, user } = useUser();
+  // Always pull data so the in-page search works as soon as the role selector renders.
+  // useSheetData caches at the module level — subsequent dashboard mounts reuse the same response.
+  const { data: sheetData } = useSheetData();
 
   const roles = isSignedIn ? user.publicMetadata?.role : null;
   const allowedPaths = getAllowedPaths(roles);
   const visibleCards = allRoleCards.filter((c) => allowedPaths.includes(c.path));
+  const searchLocation = getDefaultLocationFilter(roles);
 
   // Auto-redirect if user only has 1 dashboard view
   useEffect(() => {
@@ -149,6 +155,11 @@ function AuthenticatedSelector() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <TitleBlock />
+      {sheetData && (
+        <div className="mb-6 flex justify-center">
+          <StudentSearch data={sheetData} location={searchLocation} />
+        </div>
+      )}
       <p className="text-[var(--color-text-secondary)] text-lg mb-8">Select your dashboard view</p>
       <RoleCards cards={visibleCards} navigate={navigate} />
     </div>

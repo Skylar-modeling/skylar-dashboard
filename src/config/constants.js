@@ -90,3 +90,18 @@ export function getAllowedPaths(roles) {
 export function canAccessRoute(roles, path) {
   return getAllowedPaths(roles).includes(path);
 }
+
+/**
+ * Default location filter from a user's roles. CEO and users with both
+ * NY and Miami roles see all. Otherwise locked to the single location.
+ */
+export function getDefaultLocationFilter(roles) {
+  const list = Array.isArray(roles) ? roles : [roles].filter(Boolean);
+  if (list.includes(ROLES.CEO)) return LOCATIONS.ALL;
+  const hasNY = list.some((r) => r && r.endsWith('_nyc'));
+  const hasMIA = list.some((r) => r && r.endsWith('_mia'));
+  if (hasNY && hasMIA) return LOCATIONS.ALL;
+  if (hasNY) return LOCATIONS.NEW_YORK;
+  if (hasMIA) return LOCATIONS.MIAMI;
+  return LOCATIONS.ALL;
+}
