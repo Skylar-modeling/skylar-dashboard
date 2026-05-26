@@ -41,24 +41,15 @@ export function getRepCommissionData(data, repName, month) {
 }
 
 /**
- * Get gross commission from PAYMENTS_LOG for a specific rep for a given month.
- * This is the real-time commission based on actual payments.
+ * Get gross commission for a specific rep for a given month.
+ * Reads from COMMISSION_MONTHLY col H (pre-aggregated, cash-basis upstream).
+ * PAYMENTS_LOG rep commission columns are not maintained in the sheet.
  */
 export function getRepGrossCommission(data, repName, month) {
-  if (!data?.PAYMENTS_LOG || !repName) return 0;
-
-  return data.PAYMENTS_LOG
-    .filter((p) => {
-      if (p.paymentMonth !== month) return false;
-      if (p.paymentStatus !== 'Paid') return false;
-      if (String(p.refunded).toLowerCase() === 'yes') return false;
-      return p.rep1 === repName || p.rep2 === repName;
-    })
-    .reduce((sum, p) => {
-      if (p.rep1 === repName) return sum + (p.rep1Commission || 0);
-      if (p.rep2 === repName) return sum + (p.rep2Commission || 0);
-      return sum;
-    }, 0);
+  if (!data?.COMMISSION_MONTHLY || !repName) return 0;
+  return data.COMMISSION_MONTHLY
+    .filter((r) => r.salesRep === repName && r.month === month)
+    .reduce((sum, r) => sum + (r.totalCommission || 0), 0);
 }
 
 /**

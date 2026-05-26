@@ -178,6 +178,8 @@ function normalizeTabData(key, rows) {
       commissionAsRep2: parseNumeric(col(r, 'Commission as Rep 2')),
       totalCommission: parseNumeric(col(r, 'Total Commission')),
       commissionPaid: col(r, 'Commission Paid?'),
+      commissionPaidDate: col(r, 'Commission Paid Date'),
+      notes: col(r, 'Notes'),
     }),
     REVENUE_BY_LOCATION: (r) => ({
       month: normalizeMonth(col(r, 'Month')),

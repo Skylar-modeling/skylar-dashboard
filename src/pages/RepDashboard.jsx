@@ -10,7 +10,7 @@ import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, CLERK_PUBLISHABLE_KEY } from '../config/constants';
 import { getCurrentMonth, getPreviousMonth, getAvailableMonths } from '../utils/dateHelpers';
 import { formatCurrency, formatNumber } from '../utils/formatters';
-import { calcChange } from '../utils/calculations';
+import { calcChange, getRepYTDCommission } from '../utils/calculations';
 import {
   findRepByEmail,
   getRepGrossCommission,
@@ -74,7 +74,8 @@ export default function RepDashboard() {
     const gross = getRepGrossCommission(data, repName, month);
     const monthlyData = getRepCommissionData(data, repName, month);
     const prevGross = getRepGrossCommission(data, repName, prevMonth);
-    return { gross, ...monthlyData, prevGross };
+    const ytd = getRepYTDCommission(data, repName, month);
+    return { gross, ytd, ...monthlyData, prevGross };
   }, [data, repName, month, prevMonth]);
 
   // Sales & ranking
@@ -134,11 +135,15 @@ export default function RepDashboard() {
 
       {/* Section 1: Your Commission */}
       <SectionTitle>Your Commission</SectionTitle>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Gross Commission This Month"
           value={formatCurrency(commission?.gross || 0)}
           comparison={commission ? calcChange(commission.gross, commission.prevGross) : null}
+        />
+        <MetricCard
+          label={`YTD ${month.slice(0, 4)}`}
+          value={formatCurrency(commission?.ytd || 0)}
         />
         <MetricCard
           label="Outstanding (Unpaid)"

@@ -19,7 +19,7 @@ import {
   getTotalExpenses, getProfit, getProfitMargin, getExpenseToRevenueRatio,
   getAdSpend, getROAS, getCPA, getRevenueByProgram,
   getCashCollected, getCollectionRate, getOutstandingReceivables, getCashInOffice,
-  getTopSalesReps, getTotalCommissionOwed, getSalesByChannel, getRevenueTrend,
+  getTopSalesReps, getTotalCommissionOwed, getYTDCommissionOwed, getSalesByChannel, getRevenueTrend,
   calcChange,
 } from '../utils/calculations';
 
@@ -98,6 +98,8 @@ export default function CEODashboard() {
     const ytdExpenses = sumOverMonths(getTotalExpenses);
     const ytdAdSpend = sumOverMonths(getAdSpend);
     const ytdCashCollected = sumOverMonths(getCashCollected);
+    // YTD commission — read directly from COMMISSION_MONTHLY (single pass, no per-month loop)
+    const ytdCommission = getYTDCommissionOwed(data, month, loc);
     return {
       revenue: ytdRevenue,
       sales: ytdSales,
@@ -111,6 +113,7 @@ export default function CEODashboard() {
       cpa: ytdSales > 0 ? ytdAdSpend / ytdSales : null,
       cashCollected: ytdCashCollected,
       collectionRate: ytdRevenue > 0 ? (ytdCashCollected / ytdRevenue) * 100 : null,
+      commission: ytdCommission,
     };
   }, [data, month, location]);
 
@@ -192,13 +195,14 @@ export default function CEODashboard() {
       {ytdMetrics && (
         <>
           <SectionTitle>Year-to-Date ({month.split('-')[0]})</SectionTitle>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 mb-2">
             <MetricCard label="YTD Revenue" value={formatCurrency(ytdMetrics.revenue)} />
             <MetricCard label="YTD Sales" value={formatNumber(ytdMetrics.sales)} />
             <MetricCard label="YTD Actualized" value={formatCurrency(ytdMetrics.actualized)} />
             <MetricCard label="YTD Expenses" value={formatCurrency(ytdMetrics.expenses)} />
             <MetricCard label="YTD Profit" value={formatCurrency(ytdMetrics.profit)} />
             <MetricCard label="YTD Margin" value={ytdMetrics.profitMargin != null ? formatPercent(ytdMetrics.profitMargin) : 'N/A'} />
+            <MetricCard label="YTD Commission" value={formatCurrency(ytdMetrics.commission)} />
           </div>
         </>
       )}

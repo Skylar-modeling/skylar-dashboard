@@ -195,17 +195,10 @@ export function getTopSalesReps(data, month, location, limit = 5) {
     repMap[rep].revenueSold += (r.recognizedRevenue || 0);
   });
 
-  // Get commissions from PAYMENTS_LOG
-  let payments = data.PAYMENTS_LOG.filter((r) => r.paymentMonth === month && r.paymentStatus === 'Paid');
-  payments = filterByLocation(payments, location);
-
-  payments.forEach((p) => {
-    if (p.rep1 && repMap[p.rep1]) {
-      repMap[p.rep1].commission = (repMap[p.rep1].commission || 0) + p.rep1Commission;
-    }
-    if (p.rep2 && repMap[p.rep2]) {
-      repMap[p.rep2].commission = (repMap[p.rep2].commission || 0) + p.rep2Commission;
-    }
+  // Commission per rep — read from COMMISSION_MONTHLY col H (pre-aggregated, cash-basis).
+  // Authoritative source — PAYMENTS_LOG rep commission columns are not maintained.
+  Object.values(repMap).forEach((rep) => {
+    rep.commission = getRepCommissionForMonth(data, rep.name, month, location);
   });
 
   return Object.values(repMap)
@@ -214,11 +207,52 @@ export function getTopSalesReps(data, month, location, limit = 5) {
     .map((r) => ({ ...r, commission: r.commission || 0 }));
 }
 
-export function getTotalCommissionOwed(data, month, location) {
-  if (!data?.PAYMENTS_LOG) return 0;
-  let rows = data.PAYMENTS_LOG.filter((r) => r.paymentMonth === month && r.paymentStatus === 'Paid');
+/**
+ * Total commission for a single rep for a month, from COMMISSION_MONTHLY col H.
+ * If location is passed, the row's Location must match.
+ */
+export function getRepCommissionForMonth(data, repName, month, location) {
+  if (!data?.COMMISSION_MONTHLY || !repName) return 0;
+  let rows = data.COMMISSION_MONTHLY.filter((r) => r.salesRep === repName && r.month === month);
   rows = filterByLocation(rows, location);
-  return rows.reduce((sum, r) => sum + r.rep1Commission + r.rep2Commission, 0);
+  return rows.reduce((sum, r) => sum + (r.totalCommission || 0), 0);
+}
+
+/**
+ * Year-to-date commission for a rep through the selected month, from COMMISSION_MONTHLY col H.
+ */
+export function getRepYTDCommission(data, repName, month, location) {
+  if (!data?.COMMISSION_MONTHLY || !repName || !month) return 0;
+  const year = month.slice(0, 4);
+  let rows = data.COMMISSION_MONTHLY.filter(
+    (r) => r.salesRep === repName && r.month && r.month.startsWith(year) && r.month <= month
+  );
+  rows = filterByLocation(rows, location);
+  return rows.reduce((sum, r) => sum + (r.totalCommission || 0), 0);
+}
+
+/**
+ * Company-wide commission owed for the selected month — sum of COMMISSION_MONTHLY col H
+ * across all reps (skipping blank-Sales-Rep rows).
+ */
+export function getTotalCommissionOwed(data, month, location) {
+  if (!data?.COMMISSION_MONTHLY) return 0;
+  let rows = data.COMMISSION_MONTHLY.filter((r) => r.salesRep && r.salesRep.trim() && r.month === month);
+  rows = filterByLocation(rows, location);
+  return rows.reduce((sum, r) => sum + (r.totalCommission || 0), 0);
+}
+
+/**
+ * Company-wide YTD commission owed through the selected month.
+ */
+export function getYTDCommissionOwed(data, month, location) {
+  if (!data?.COMMISSION_MONTHLY || !month) return 0;
+  const year = month.slice(0, 4);
+  let rows = data.COMMISSION_MONTHLY.filter(
+    (r) => r.salesRep && r.salesRep.trim() && r.month && r.month.startsWith(year) && r.month <= month
+  );
+  rows = filterByLocation(rows, location);
+  return rows.reduce((sum, r) => sum + (r.totalCommission || 0), 0);
 }
 
 // ─── Section 7: Sales Operations ───
