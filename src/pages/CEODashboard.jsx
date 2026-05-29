@@ -372,8 +372,8 @@ export default function CEODashboard() {
               </thead>
               <tbody>
                 {[
-                  { label: 'Undeposited Cash', key: 'undepositedCash' },
-                  { label: 'Counted Cash', key: 'countedCash' },
+                  { label: 'Cash on Hand', key: 'cashOnHand' },
+                  { label: 'Counted Cash (latest)', key: 'countedCash' },
                   { label: 'Discrepancy', key: 'discrepancy' },
                 ].map((row) => (
                   <tr key={row.key} className="border-b border-[var(--color-border)]/50">

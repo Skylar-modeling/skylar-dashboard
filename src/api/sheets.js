@@ -238,9 +238,10 @@ function normalizeTabData(key, rows) {
       cashOut: parseNumeric(col(r, 'Cash Out')),
       netCash: parseNumeric(col(r, 'Net Cash')),
       cumulativeCashIn: parseNumeric(col(r, 'Cumulative Cash In')),
-      cumulativeCashOut: parseNumeric(col(r, 'Cumulative Cash Out', 'Cumulative Net')),
+      cumulativeCashOut: parseNumeric(col(r, 'Cumulative Cash Out')),
+      // Cumulative Net = running balance of cash on hand (Cumulative Cash In − Cumulative Cash Out)
+      cumulativeNet: parseNumeric(col(r, 'Cumulative Net')),
       countedCash: parseNumeric(col(r, 'Counted Cash')),
-      discrepancy: parseNumeric(col(r, 'Discrepancy')),
     }),
   };
 

@@ -149,30 +149,39 @@ export function getOutstandingReceivables(data, location) {
 }
 
 export function getCashInOffice(data, month) {
-  if (!data?.CASH_LEDGER) return null;
-  const rows = data.CASH_LEDGER.filter((r) => r.month === month);
-  if (rows.length === 0) return null;
+  if (!data?.CASH_LEDGER || data.CASH_LEDGER.length === 0) return null;
 
-  const result = { ny: null, miami: null };
-  rows.forEach((r) => {
-    const loc = r.location === 'New York' ? 'ny' : r.location === 'Miami' ? 'miami' : null;
-    if (loc) {
-      result[loc] = {
-        undepositedCash: r.netCash,
-        countedCash: r.countedCash,
-        discrepancy: r.discrepancy,
-      };
+  // Cumulative columns are running totals; pick the latest row per location
+  // (up to and including the selected month, so the dashboard's month selector still scopes correctly).
+  const latest = { 'New York': null, 'Miami': null };
+  data.CASH_LEDGER.forEach((r) => {
+    if (!r.location || !r.month || !(r.location in latest)) return;
+    if (month && r.month > month) return;
+    if (!latest[r.location] || r.month > latest[r.location].month) {
+      latest[r.location] = r;
     }
   });
 
-  if (!result.ny && !result.miami) return null;
+  if (!latest['New York'] && !latest['Miami']) return null;
 
-  result.total = {
-    undepositedCash: (result.ny?.undepositedCash || 0) + (result.miami?.undepositedCash || 0),
-    countedCash: (result.ny?.countedCash || 0) + (result.miami?.countedCash || 0),
-    discrepancy: (result.ny?.discrepancy || 0) + (result.miami?.discrepancy || 0),
+  // Cash on Hand = Cumulative Net (running net cash on hand across all months)
+  // Counted Cash = latest physical count for that location
+  // Discrepancy = Counted Cash − Cash on Hand (should be $0 when reconciled)
+  const build = (row) => row ? {
+    cashOnHand: row.cumulativeNet || 0,
+    countedCash: row.countedCash || 0,
+    discrepancy: (row.countedCash || 0) - (row.cumulativeNet || 0),
+  } : { cashOnHand: 0, countedCash: 0, discrepancy: 0 };
+
+  const result = {
+    ny: build(latest['New York']),
+    miami: build(latest['Miami']),
   };
-
+  result.total = {
+    cashOnHand: result.ny.cashOnHand + result.miami.cashOnHand,
+    countedCash: result.ny.countedCash + result.miami.countedCash,
+    discrepancy: result.ny.discrepancy + result.miami.discrepancy,
+  };
   return result;
 }
 

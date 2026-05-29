@@ -319,8 +319,8 @@ export default function ManagerDashboard() {
         <ChartCard title={`Cash in Office \u2014 ${locationLabel}`}>
           <div className="grid grid-cols-3 gap-4 text-center">
             {[
-              { label: 'Undeposited Cash', value: locationCash.undepositedCash },
-              { label: 'Counted Cash', value: locationCash.countedCash },
+              { label: 'Cash on Hand', value: locationCash.cashOnHand },
+              { label: 'Counted Cash (latest)', value: locationCash.countedCash },
               { label: 'Discrepancy', value: locationCash.discrepancy },
             ].map((item) => (
               <div key={item.label}>
