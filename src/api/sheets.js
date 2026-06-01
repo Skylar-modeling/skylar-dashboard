@@ -128,6 +128,9 @@ function normalizeTabData(key, rows) {
       source: col(r, 'Source'),
       location: col(r, 'Location'),
       stripeInvoiceId: col(r, 'Stripe Invoice ID'),
+      // Human-readable invoice number from Stripe (e.g. "PFQIYO1C-0004").
+      // Lives in a future "Invoice Number" column; falls back to empty until added upstream.
+      invoiceNumber: col(r, 'Invoice Number', 'Stripe Invoice Number'),
       stripeCustomerId: col(r, 'Stripe Customer ID'),
       rep1: col(r, 'Rep 1'),
       rep1Split: parseNumeric(col(r, 'Rep 1 Split')),

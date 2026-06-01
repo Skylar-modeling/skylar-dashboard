@@ -123,8 +123,8 @@ export default function StudentDetail({ student, onClose }) {
                         <td className="px-3 py-2 text-[var(--color-text-muted)] hidden sm:table-cell">
                           {p.source || '—'}
                         </td>
-                        <td className="px-3 py-2 text-[var(--color-text-muted)] font-mono hidden sm:table-cell" title={p.stripeInvoiceId || ''}>
-                          {p.stripeInvoiceId ? truncateId(p.stripeInvoiceId) : '—'}
+                        <td className="px-3 py-2 text-[var(--color-text-muted)] font-mono hidden sm:table-cell" title={p.invoiceNumber || p.stripeInvoiceId || ''}>
+                          {p.invoiceNumber || (p.stripeInvoiceId ? truncateId(p.stripeInvoiceId) : '—')}
                         </td>
                       </tr>
                     ))}
