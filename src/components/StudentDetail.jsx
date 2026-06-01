@@ -102,7 +102,7 @@ export default function StudentDetail({ student, onClose }) {
                       <th className="text-left px-3 py-2 text-[var(--color-text-muted)] font-medium">Amount</th>
                       <th className="text-left px-3 py-2 text-[var(--color-text-muted)] font-medium">Status</th>
                       <th className="text-left px-3 py-2 text-[var(--color-text-muted)] font-medium hidden sm:table-cell">Source</th>
-                      <th className="text-left px-3 py-2 text-[var(--color-text-muted)] font-medium hidden sm:table-cell">ID</th>
+                      <th className="text-left px-3 py-2 text-[var(--color-text-muted)] font-medium hidden sm:table-cell">Invoice</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -123,8 +123,8 @@ export default function StudentDetail({ student, onClose }) {
                         <td className="px-3 py-2 text-[var(--color-text-muted)] hidden sm:table-cell">
                           {p.source || '—'}
                         </td>
-                        <td className="px-3 py-2 text-[var(--color-text-muted)] font-mono hidden sm:table-cell">
-                          {p.paymentId ? truncateId(p.paymentId) : '—'}
+                        <td className="px-3 py-2 text-[var(--color-text-muted)] font-mono hidden sm:table-cell" title={p.stripeInvoiceId || ''}>
+                          {p.stripeInvoiceId ? truncateId(p.stripeInvoiceId) : '—'}
                         </td>
                       </tr>
                     ))}
