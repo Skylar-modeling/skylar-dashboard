@@ -45,11 +45,30 @@ export default function StudentDetail({ student, onClose }) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Contact Info */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <InfoItem label="Email" value={student.email || '—'} />
-            <InfoItem label="Phone" value={student.phone || '—'} />
-            <InfoItem label="Location" value={student.location || '—'} />
-          </div>
+          {(() => {
+            // Show two email fields only when the student has a distinct second email on file.
+            // Otherwise show a single "Email" — most students share payer + student email.
+            const payer = (student.email || '').trim();
+            const studentE = (student.studentEmail || '').trim();
+            const hasDistinct = studentE && studentE.toLowerCase() !== payer.toLowerCase();
+            if (hasDistinct) {
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <InfoItem label="Payer email" value={payer || '—'} />
+                  <InfoItem label="Student email" value={studentE} />
+                  <InfoItem label="Phone" value={student.phone || '—'} />
+                  <InfoItem label="Location" value={student.location || '—'} />
+                </div>
+              );
+            }
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <InfoItem label="Email" value={payer || '—'} />
+                <InfoItem label="Phone" value={student.phone || '—'} />
+                <InfoItem label="Location" value={student.location || '—'} />
+              </div>
+            );
+          })()}
 
           {/* Program & Sales Info */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

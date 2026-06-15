@@ -109,6 +109,10 @@ function normalizeTabData(key, rows) {
       adjustedBalanceOwed: parseNumeric(col(r, 'AdjustedBalanceOwed', 'Adjusted Balance Owed')),
       // col AM — Channel the enrollment came through ("In-Person" | "Phone Calls" | "Zoom" | "Call Lead" | blank)
       channel: col(r, 'Channel'),
+      // col AN — Student's own email, populated only when it differs from the payer (col C).
+      // Blank for most rows ("same as payer"). NEVER used as a Stripe / PAYMENTS_LOG join key —
+      // col C (email) remains the sole canonical identifier for those.
+      studentEmail: col(r, 'Student Email'),
     }),
     ACTUALIZED_REVENUE: (r) => ({
       month: normalizeMonth(col(r, 'Month')),

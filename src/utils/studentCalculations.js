@@ -66,20 +66,25 @@ export function searchStudents(data, query, location) {
     students = students.filter((s) => s.location === location);
   }
 
-  // Search by name, email, or phone
-  const matches = students.filter((s) => {
-    const name = (s.fullName || '').toLowerCase();
-    const email = (s.email || '').toLowerCase();
-    const phone = (s.phone || '').replace(/\D/g, '');
-    const queryDigits = q.replace(/\D/g, '');
+  // Search by name, payer email (col C), student email (col AN), or phone
+  const queryDigits = q.replace(/\D/g, '');
 
+  // Two-pass so payer-email matches rank above student-email-only matches when both exist.
+  const payerOrOther = students.filter((s) => {
+    const name = (s.fullName || '').toLowerCase();
+    const email = (s.email || '').trim().toLowerCase();
+    const phone = (s.phone || '').replace(/\D/g, '');
     return (
       name.includes(q) ||
       email.includes(q) ||
       (queryDigits.length >= 3 && phone.includes(queryDigits))
     );
   });
+  const studentEmailOnly = students.filter((s) => {
+    if (payerOrOther.includes(s)) return false;
+    const se = (s.studentEmail || '').trim().toLowerCase();
+    return se && se.includes(q);
+  });
 
-  // Limit results to 20
-  return matches.slice(0, 20);
+  return [...payerOrOther, ...studentEmailOnly].slice(0, 20);
 }

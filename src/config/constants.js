@@ -12,7 +12,7 @@ export const PROGRAMS = ['8 Weeks', 'Model Weekend', 'Photoshoot', 'Online Progr
 export const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 export const TAB_RANGES = {
-  STUDENTS_MASTER: 'STUDENTS_MASTER!A:AM',
+  STUDENTS_MASTER: 'STUDENTS_MASTER!A:AN',
   ACTUALIZED_REVENUE: 'ACTUALIZED_REVENUE!A:F',
   PAYMENTS_LOG: 'PAYMENTS_LOG!A:Z',
   SALES_REPS: 'SALES_REPS!A:G',
