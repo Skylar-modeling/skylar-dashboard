@@ -63,6 +63,7 @@ export default function ManagerDashboard() {
   const availableMonths = useMemo(() => data ? getAvailableMonths(data) : [], [data]);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [comparisonMode, setComparisonMode] = useState('prev'); // 'prev' | 'yoy'
+  const [agingBucket, setAgingBucket] = useState(null);
 
   const month = selectedMonth || getCurrentMonth();
   const compMonth = comparisonMode === 'prev' ? getPreviousMonth(month) : getSameMonthLastYear(month);
@@ -186,15 +187,31 @@ export default function ManagerDashboard() {
         </div>
       </div>
 
-      {/* Needs Attention — prioritized worklist pinned to the very top */}
+      {/* Section 1: Needs Attention — prioritized worklist pinned to the very top */}
       <SectionTitle>Needs Attention</SectionTitle>
       <NeedsAttention alerts={alerts} data={data} />
 
-      {/* Recent Activity — chronological 7-day feed of every meaningful event */}
+      {/* Section 2: Recent Activity — chronological 7-day feed of every meaningful event */}
       <SectionTitle>Recent Activity (last 7 days)</SectionTitle>
       <ActivityFeed events={recentActivity} data={data} />
 
-      {/* Section 1: Revenue & Sales */}
+      {/* Section 3: AR Aging — clickable buckets drill into Open Accounts below */}
+      <SectionTitle>Accounts Receivable Aging</SectionTitle>
+      <ARAging
+        buckets={arAging}
+        selectedKey={agingBucket?.key || null}
+        onBucketClick={(b) => {
+          setAgingBucket(b);
+          if (b) {
+            requestAnimationFrame(() => {
+              const el = document.getElementById('open-accounts-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }
+        }}
+      />
+
+      {/* Section 4: Revenue & Sales */}
       <SectionTitle>Revenue &amp; Sales</SectionTitle>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -223,59 +240,7 @@ export default function ManagerDashboard() {
         />
       </div>
 
-      {/* Section 2: Profitability */}
-      <SectionTitle>Profitability</SectionTitle>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          label="Total Expenses"
-          value={formatCurrency(m?.cur.totalExpenses)}
-          comparison={m ? comp(m.cur.totalExpenses, m.prev.totalExpenses) : null}
-          comparisonLabel={noYoYLabel}
-        />
-        <MetricCard
-          label="Profit"
-          value={formatCurrency(m?.cur.profit)}
-          comparison={m ? comp(m.cur.profit, m.prev.profit) : null}
-          comparisonLabel={noYoYLabel}
-        />
-        <MetricCard
-          label="Profit Margin"
-          value={m?.cur.profitMargin != null ? formatPercent(m.cur.profitMargin) : 'N/A'}
-          comparison={m ? comp(m.cur.profitMargin, m.prev.profitMargin) : null}
-          comparisonLabel={noYoYLabel}
-        />
-        <MetricCard
-          label="Expense-to-Revenue Ratio"
-          value={m?.cur.expenseRatio != null ? formatPercent(m.cur.expenseRatio) : 'N/A'}
-          comparison={m ? comp(m.cur.expenseRatio, m.prev.expenseRatio) : null}
-          comparisonLabel={noYoYLabel}
-        />
-      </div>
-
-      {/* Section 3: Marketing Efficiency */}
-      <SectionTitle>Marketing Efficiency</SectionTitle>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricCard
-          label="Ad Spend"
-          value={formatCurrency(m?.cur.adSpend)}
-          comparison={m ? comp(m.cur.adSpend, m.prev.adSpend) : null}
-          comparisonLabel={noYoYLabel}
-        />
-        <MetricCard
-          label="ROAS"
-          value={m?.cur.roas != null ? `${m.cur.roas.toFixed(2)}x` : 'N/A'}
-          comparison={m ? comp(m.cur.roas, m.prev.roas) : null}
-          comparisonLabel={noYoYLabel}
-        />
-        <MetricCard
-          label="CPA"
-          value={m?.cur.cpa != null ? formatCurrency(m.cur.cpa) : 'N/A'}
-          comparison={m ? comp(m.cur.cpa, m.prev.cpa) : null}
-          comparisonLabel={noYoYLabel}
-        />
-      </div>
-
-      {/* Section 4: Revenue by Program */}
+      {/* Section 5: Revenue by Program */}
       <SectionTitle>Revenue by Program</SectionTitle>
       {programData.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -323,46 +288,7 @@ export default function ManagerDashboard() {
         <EmptyState title="No program data" message="Revenue by program data is not yet available for this month." />
       )}
 
-      {/* Section 5: Cash & Collections */}
-      <SectionTitle>Cash &amp; Collections</SectionTitle>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-        <MetricCard
-          label="Cash Collected"
-          value={formatCurrency(m?.cur.cashCollected)}
-          comparison={m ? comp(m.cur.cashCollected, m.prev.cashCollected) : null}
-          comparisonLabel={noYoYLabel}
-        />
-        <MetricCard
-          label="Collection Rate"
-          value={m?.cur.collectionRate != null ? formatPercent(m.cur.collectionRate) : 'N/A'}
-          comparison={m ? comp(m.cur.collectionRate, m.prev.collectionRate) : null}
-          comparisonLabel={noYoYLabel}
-        />
-        <MetricCard
-          label="Outstanding Receivables"
-          value={formatCurrency(m?.cur.outstandingReceivables)}
-        />
-      </div>
-
-      {/* Cash in Office — single location */}
-      {locationCash ? (
-        <ChartCard title={`Cash in Office \u2014 ${locationLabel}`}>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            {[
-              { label: 'Cash on Hand', value: locationCash.cashOnHand },
-              { label: 'Counted Cash (latest)', value: locationCash.countedCash },
-              { label: 'Discrepancy', value: locationCash.discrepancy },
-            ].map((item) => (
-              <div key={item.label}>
-                <div className="text-xs text-[var(--color-text-secondary)] mb-1">{item.label}</div>
-                <div className="text-lg font-bold text-[var(--color-text-primary)]">{formatCurrency(item.value)}</div>
-              </div>
-            ))}
-          </div>
-        </ChartCard>
-      ) : (
-        <EmptyState title="No cash data" message="Cash tracking data is not yet available for this location." />
-      )}
+      {/* Profitability / Marketing Efficiency / Cash & Collections removed from Manager view per layout request */}
 
       {/* Section 6: Sales Activity by Channel */}
       <SectionTitle>Sales Activity by Channel</SectionTitle>
@@ -393,19 +319,21 @@ export default function ManagerDashboard() {
       <SectionTitle>Class Roster by Cohort</SectionTitle>
       <CohortRoster cohorts={cohorts} data={data} location={location} />
 
-      {/* Section 9: AR Aging — bucket the open balance by staleness of last payment */}
-      <SectionTitle>Accounts Receivable Aging</SectionTitle>
-      <ARAging buckets={arAging} />
-
-      {/* Section 10: Open Accounts (drill-down of Outstanding Receivables) — pinned to bottom because the list is long */}
-      <SectionTitle>Open Accounts</SectionTitle>
-      <OpenAccountsList accounts={openAccounts} data={data} />
-
-      {/* Section 10: Dunning Worklist — all failing invoices in last 30 days */}
+      {/* Section 9: Dunning Worklist — all failing invoices in last 30 days (scrollable) */}
       <SectionTitle>Dunning Worklist</SectionTitle>
       <DunningWorklist items={dunningList} data={data} />
 
-      {/* Section 11: Stale Status — contradictory enrollment / cancellation states */}
+      {/* Section 10: Open Accounts (drill-down of Outstanding Receivables; scrollable + AR-Aging-filterable) */}
+      <div id="open-accounts-section" />
+      <SectionTitle>Open Accounts</SectionTitle>
+      <OpenAccountsList
+        accounts={openAccounts}
+        data={data}
+        agingBucket={agingBucket}
+        onClearAging={() => setAgingBucket(null)}
+      />
+
+      {/* Section 11: Stale Status — contradictory enrollment / cancellation states (audit safeguard) */}
       <SectionTitle>Stale Status</SectionTitle>
       <StaleStatusList items={staleStatus} data={data} />
 

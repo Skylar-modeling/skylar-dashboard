@@ -61,6 +61,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function CEODashboard() {
   const { data, loading, lastUpdated, refresh } = useSheetData();
   const [location, setLocation] = useState(LOCATIONS.ALL);
+  const [agingBucket, setAgingBucket] = useState(null);
   const availableMonths = useMemo(() => data ? getAvailableMonths(data) : [], [data]);
   const [selectedMonth, setSelectedMonth] = useState('');
 
@@ -212,14 +213,6 @@ export default function CEODashboard() {
           ))}
         </div>
       </div>
-
-      {/* Needs Attention — prioritized worklist pinned to the very top */}
-      <SectionTitle>Needs Attention</SectionTitle>
-      <NeedsAttention alerts={alerts} data={data} />
-
-      {/* Recent Activity — chronological 7-day feed of every meaningful event */}
-      <SectionTitle>Recent Activity (last 7 days)</SectionTitle>
-      <ActivityFeed events={recentActivity} data={data} />
 
       {/* YTD Summary */}
       {ytdMetrics && (
@@ -467,23 +460,50 @@ export default function CEODashboard() {
         <EmptyState title="No trend data" message="Revenue trend data will appear once multiple months of data are available." />
       )}
 
-      {/* Section 9: Per-cohort class roster — scan workflow for "is anyone misplaced?" */}
+      {/* Section 10: Per-cohort class roster — scan workflow for "is anyone misplaced?" */}
       <SectionTitle>Class Roster by Cohort</SectionTitle>
       <CohortRoster cohorts={cohorts} data={data} location={location} />
 
-      {/* Section 10: AR Aging — bucket the open balance by staleness of last payment */}
+      {/* Section 11: Recent Activity — chronological 7-day feed of every meaningful event */}
+      <SectionTitle>Recent Activity (last 7 days)</SectionTitle>
+      <ActivityFeed events={recentActivity} data={data} />
+
+      {/* Section 12: Needs Attention — prioritized worklist of dispute risk / repeat failures / billed-after-cancel */}
+      <SectionTitle>Needs Attention</SectionTitle>
+      <NeedsAttention alerts={alerts} data={data} />
+
+      {/* Section 13: AR Aging — clickable buckets drill into Open Accounts below */}
       <SectionTitle>Accounts Receivable Aging</SectionTitle>
-      <ARAging buckets={arAging} />
+      <ARAging
+        buckets={arAging}
+        selectedKey={agingBucket?.key || null}
+        onBucketClick={(b) => {
+          setAgingBucket(b);
+          // Smooth-scroll to the Open Accounts section when a bucket is picked
+          if (b) {
+            requestAnimationFrame(() => {
+              const el = document.getElementById('open-accounts-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }
+        }}
+      />
 
-      {/* Section 11: Open Accounts (drill-down of Outstanding Receivables) — pinned to bottom because the list is long */}
-      <SectionTitle>Open Accounts</SectionTitle>
-      <OpenAccountsList accounts={openAccounts} data={data} />
-
-      {/* Section 11: Dunning Worklist — all failing invoices in last 30 days */}
+      {/* Section 14: Dunning Worklist — all failing invoices in last 30 days (scrollable) */}
       <SectionTitle>Dunning Worklist</SectionTitle>
       <DunningWorklist items={dunningList} data={data} />
 
-      {/* Section 12: Stale Status — contradictory enrollment / cancellation states */}
+      {/* Section 15: Open Accounts (drill-down of Outstanding Receivables; scrollable + AR-Aging-filterable) */}
+      <div id="open-accounts-section" />
+      <SectionTitle>Open Accounts</SectionTitle>
+      <OpenAccountsList
+        accounts={openAccounts}
+        data={data}
+        agingBucket={agingBucket}
+        onClearAging={() => setAgingBucket(null)}
+      />
+
+      {/* Section 16: Stale Status — contradictory enrollment / cancellation states (audit safeguard) */}
       <SectionTitle>Stale Status</SectionTitle>
       <StaleStatusList items={staleStatus} data={data} />
 

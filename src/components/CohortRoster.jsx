@@ -65,6 +65,11 @@ function CohortHeader({ cohort, showLocation }) {
   return (
     <div className="flex items-start justify-between gap-3 mb-3">
       <div>
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--color-accent-blue)]/15 text-[var(--color-accent-blue)]">
+            {cohort.program}
+          </span>
+        </div>
         <div className="text-sm font-semibold text-[var(--color-text-primary)]">{dateLabel}</div>
         <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
           {showLocation && <>{cohort.location} · </>}
