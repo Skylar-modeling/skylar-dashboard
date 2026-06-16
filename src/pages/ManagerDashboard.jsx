@@ -15,9 +15,10 @@ import CohortRoster from '../components/CohortRoster';
 import NeedsAttention from '../components/NeedsAttention';
 import DunningWorklist from '../components/DunningWorklist';
 import ARAging from '../components/ARAging';
+import StaleStatusList from '../components/StaleStatusList';
 import {
   getOpenAccounts, getCohorts, getRepeatedFailures, getCancelledButBilled, getOpenDisputes,
-  getDunningList, getARAging,
+  getDunningList, getARAging, getStaleStatusItems,
 } from '../utils/studentCalculations';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
@@ -115,6 +116,7 @@ export default function ManagerDashboard() {
   }), [data, location]);
   const dunningList = useMemo(() => data ? getDunningList(data, location) : [], [data, location]);
   const arAging = useMemo(() => getARAging(data, location), [data, location]);
+  const staleStatus = useMemo(() => data ? getStaleStatusItems(data, location) : [], [data, location]);
 
   const locationCash = useMemo(() => {
     if (!cashInOffice) return null;
@@ -396,6 +398,10 @@ export default function ManagerDashboard() {
       {/* Section 10: Dunning Worklist — all failing invoices in last 30 days */}
       <SectionTitle>Dunning Worklist</SectionTitle>
       <DunningWorklist items={dunningList} data={data} />
+
+      {/* Section 11: Stale Status — contradictory enrollment / cancellation states */}
+      <SectionTitle>Stale Status</SectionTitle>
+      <StaleStatusList items={staleStatus} data={data} />
 
       <div className="h-12" />
     </Layout>

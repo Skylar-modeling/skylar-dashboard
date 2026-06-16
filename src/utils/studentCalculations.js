@@ -458,6 +458,103 @@ export function getARAging(data, location) {
 }
 
 /**
+ * Detect accounts in contradictory / stuck status states. These are the
+ * silent bookkeeping bugs that cause disputes weeks later.
+ *
+ * Issue types:
+ *   "no-cancel-date"        — enrollmentStatus = Cancelled but Cancellation Date is blank
+ *   "date-no-cancel-status" — Cancellation Date set but enrollmentStatus is NOT Cancelled
+ *   "billed-after-cancel"   — Successful charge fired after Cancellation Date
+ *                             (same case the inbox surfaces, included here for the full audit list)
+ *   "unknown-status"        — enrollmentStatus is non-blank but not a recognized value
+ */
+const RECOGNIZED_STATUSES = ['active', 'cancelled', 'completed', 'paused', 'pending'];
+
+export function getStaleStatusItems(data, location) {
+  if (!data?.STUDENTS_MASTER) return [];
+
+  const out = [];
+  const students = data.STUDENTS_MASTER.filter((s) => {
+    if (location && location !== 'ALL' && s.location !== location) return false;
+    return true;
+  });
+
+  students.forEach((s) => {
+    const statusRaw = (s.enrollmentStatus || '').trim();
+    const status = statusRaw.toLowerCase();
+    const cancelDate = (s.cancellationDate || '').slice(0, 10);
+
+    // 1. Cancelled status but no cancellation date
+    if (status === 'cancelled' && !cancelDate) {
+      out.push({
+        type: 'no-cancel-date',
+        label: 'Cancelled · no date',
+        severity: 'amber',
+        student: s,
+        studentName: s.fullName,
+        detail: 'Status is Cancelled but Cancellation Date is blank — fill it so billing logic can lock.',
+      });
+    }
+
+    // 2. Cancellation Date present but status isn't Cancelled
+    if (cancelDate && status !== 'cancelled') {
+      out.push({
+        type: 'date-no-cancel-status',
+        label: 'Date set · status mismatched',
+        severity: 'amber',
+        student: s,
+        studentName: s.fullName,
+        detail: `Cancellation Date = ${cancelDate} but Enrollment Status = "${statusRaw || 'blank'}".`,
+      });
+    }
+
+    // 3. Cancelled AND a Paid charge fired after the cancellation date
+    if (status === 'cancelled' && cancelDate && s.email) {
+      const postCancel = (data.PAYMENTS_LOG || []).filter((p) => {
+        if (p.paymentStatus !== 'Paid') return false;
+        if (String(p.refunded).toLowerCase() === 'yes') return false;
+        if (!p.studentEmail || p.studentEmail.toLowerCase() !== s.email.toLowerCase()) return false;
+        return (p.paymentDate || '').slice(0, 10) > cancelDate;
+      });
+      if (postCancel.length > 0) {
+        const lastDate = postCancel.map((p) => p.paymentDate).sort().pop();
+        const total = postCancel.reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
+        out.push({
+          type: 'billed-after-cancel',
+          label: 'Billed after cancel',
+          severity: 'red',
+          student: s,
+          studentName: s.fullName,
+          detail: `${postCancel.length} charge${postCancel.length !== 1 ? 's' : ''} (${formatCurrencyShort(total)}) after Cancellation Date ${cancelDate}. Last charge ${(lastDate || '').slice(0, 10)}.`,
+        });
+      }
+    }
+
+    // 4. Non-blank but not in the known vocabulary
+    if (statusRaw && !RECOGNIZED_STATUSES.includes(status)) {
+      out.push({
+        type: 'unknown-status',
+        label: 'Unknown status',
+        severity: 'amber',
+        student: s,
+        studentName: s.fullName,
+        detail: `Enrollment Status = "${statusRaw}" — not in the expected vocabulary (Active / Cancelled / Completed / Paused / Pending).`,
+      });
+    }
+  });
+
+  // Severity sort: red first, then amber
+  const sevOrder = { red: 0, amber: 1, gray: 2 };
+  return out.sort((a, b) => (sevOrder[a.severity] - sevOrder[b.severity]) || a.studentName.localeCompare(b.studentName));
+}
+
+// Local helper — avoid importing the formatter into a util that's already deep in the import graph
+function formatCurrencyShort(n) {
+  if (n == null || isNaN(n)) return '$0';
+  return '$' + Math.round(n).toLocaleString('en-US');
+}
+
+/**
  * Detect open / recent Stripe disputes.
  * Disputes are real money risk — Stripe pulls funds when one is opened, and
  * if not won within the deadline (~20 days), you lose the money + a fee.
