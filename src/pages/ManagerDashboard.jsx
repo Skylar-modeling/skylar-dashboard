@@ -10,6 +10,8 @@ import MonthSelector from '../components/MonthSelector';
 import ChartCard from '../components/ChartCard';
 import EmptyState from '../components/EmptyState';
 import SalesByChannel from '../components/SalesByChannel';
+import OpenAccountsList from '../components/OpenAccountsList';
+import { getOpenAccounts } from '../utils/studentCalculations';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
 import {
@@ -97,6 +99,7 @@ export default function ManagerDashboard() {
   const salesByChannel = useMemo(() => data ? getSalesByChannel(data, month, location) : null, [data, month, location]);
   const prevSalesByChannel = useMemo(() => data ? getSalesByChannel(data, compMonth, location) : null, [data, compMonth, location]);
   const cashInOffice = useMemo(() => data ? getCashInOffice(data, month) : null, [data, month]);
+  const openAccounts = useMemo(() => data ? getOpenAccounts(data, location) : [], [data, location]);
 
   const locationCash = useMemo(() => {
     if (!cashInOffice) return null;
@@ -334,7 +337,11 @@ export default function ManagerDashboard() {
         <EmptyState title="No cash data" message="Cash tracking data is not yet available for this location." />
       )}
 
-      {/* Section 6: Sales Activity by Channel */}
+      {/* Section 6: Open Accounts (drill-down of Outstanding Receivables) */}
+      <SectionTitle>Open Accounts</SectionTitle>
+      <OpenAccountsList accounts={openAccounts} data={data} />
+
+      {/* Section 7: Sales Activity by Channel */}
       <SectionTitle>Sales Activity by Channel</SectionTitle>
       <SalesByChannel data={salesByChannel} prevData={prevSalesByChannel} />
 

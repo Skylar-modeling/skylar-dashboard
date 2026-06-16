@@ -71,11 +71,10 @@ export default function StudentDetail({ student, onClose }) {
           })()}
 
           {/* Program & Sales Info */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <InfoItem label="Program" value={student.program || '—'} />
             <InfoItem label="Sales Rep" value={student.salesRep1 || '—'} />
             <InfoItem label="Start Date" value={student.startDate || '—'} />
-            <InfoItem label="Deposit Method" value={student.depositMethod || '—'} />
           </div>
 
           {/* Financial Summary */}

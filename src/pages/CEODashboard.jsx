@@ -10,6 +10,8 @@ import ChartCard from '../components/ChartCard';
 import DataTable from '../components/DataTable';
 import EmptyState from '../components/EmptyState';
 import SalesByChannel from '../components/SalesByChannel';
+import OpenAccountsList from '../components/OpenAccountsList';
+import { getOpenAccounts } from '../utils/studentCalculations';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
 import { getCurrentMonth, getPreviousMonth, getSameMonthLastYear, getAvailableMonths, getLast6Months, getYTDMonths, formatMonthDisplay } from '../utils/dateHelpers';
@@ -133,6 +135,7 @@ export default function CEODashboard() {
 
   const programData = useMemo(() => data ? getRevenueByProgram(data, month, location) : [], [data, month, location]);
   const cashInOffice = useMemo(() => data ? getCashInOffice(data, month) : null, [data, month]);
+  const openAccounts = useMemo(() => data ? getOpenAccounts(data, location) : [], [data, location]);
   const topReps = useMemo(() => data ? getTopSalesReps(data, month, location) : [], [data, month, location]);
   const salesByChannel = useMemo(() => data ? getSalesByChannel(data, month, location) : null, [data, month, location]);
   const prevSalesByChannel = useMemo(() => data ? getSalesByChannel(data, compMonth, location) : null, [data, compMonth, location]);
@@ -391,7 +394,11 @@ export default function CEODashboard() {
         <EmptyState title="No cash data" message="Cash tracking data is not yet available. This section will populate once cash transactions start flowing from Airtable." />
       )}
 
-      {/* Section 6: Top 5 Sales Reps */}
+      {/* Section 6: Open Accounts (drill-down of Outstanding Receivables) */}
+      <SectionTitle>Open Accounts</SectionTitle>
+      <OpenAccountsList accounts={openAccounts} data={data} />
+
+      {/* Section 7: Top 5 Sales Reps */}
       <SectionTitle>Top 5 Sales Reps</SectionTitle>
       <ChartCard>
         <DataTable

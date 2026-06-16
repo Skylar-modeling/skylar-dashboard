@@ -54,6 +54,53 @@ export function getStudentRecord(data, student) {
   };
 }
 
+/**
+ * All students with Outstanding > $0, enriched with derived fields and sorted
+ * by Start Date ascending (earliest first). Cancelled students are naturally
+ * excluded because AL (AdjustedBalanceOwed) is forced to $0 by the sheet formula.
+ *
+ * Returned rows include everything from the raw STUDENTS_MASTER row plus:
+ *  - paid: totalCollected (col W)
+ *  - outstanding: adjustedBalanceOwed (col AL)
+ *  - failedCount: number of charge_failed payments in PAYMENTS_LOG
+ *  - lastPaymentDate: most recent successful Paid payment date (or null)
+ */
+export function getOpenAccounts(data, location) {
+  if (!data?.STUDENTS_MASTER) return [];
+
+  let students = data.STUDENTS_MASTER.filter((s) => (s.adjustedBalanceOwed || 0) > 0);
+  if (location && location !== 'ALL') {
+    students = students.filter((s) => s.location === location);
+  }
+
+  return students.map((s) => {
+    const payments = (data.PAYMENTS_LOG || []).filter(
+      (p) => p.studentEmail && s.email && p.studentEmail.toLowerCase() === s.email.toLowerCase()
+    );
+    const failedCount = payments.filter((p) => p.paymentStatus === 'charge_failed').length;
+    const lastPayment = payments
+      .filter((p) => p.paymentStatus === 'Paid' && p.paymentDate)
+      .sort((a, b) => (b.paymentDate || '').localeCompare(a.paymentDate || ''))[0];
+
+    return {
+      ...s,
+      paid: s.totalCollected || 0,
+      outstanding: s.adjustedBalanceOwed || 0,
+      failedCount,
+      lastPaymentDate: lastPayment?.paymentDate || null,
+    };
+  }).sort((a, b) => {
+    // Default sort: Start Date ascending. Blank/missing dates go last so they
+    // don't crowd the action-needed rows at the top.
+    const aDate = a.startDate || '';
+    const bDate = b.startDate || '';
+    if (!aDate && !bDate) return 0;
+    if (!aDate) return 1;
+    if (!bDate) return -1;
+    return aDate.localeCompare(bDate);
+  });
+}
+
 export function searchStudents(data, query, location) {
   if (!data?.STUDENTS_MASTER || !query || query.trim().length < 2 || query.trim().length > 50) return [];
 
