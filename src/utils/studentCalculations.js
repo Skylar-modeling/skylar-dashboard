@@ -3,6 +3,16 @@
  * Derives amount paid, outstanding balance, late fees, and payment history
  * from STUDENTS_MASTER and PAYMENTS_LOG data.
  */
+import { PROGRAMS } from '../config/constants';
+
+// Normalize a free-text program value to the canonical name from PROGRAMS,
+// so a sheet typo like "photoshoot" still buckets under "Photoshoot".
+function normalizeProgram(value) {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return '';
+  const lower = trimmed.toLowerCase();
+  return PROGRAMS.find((p) => p.toLowerCase() === lower) || trimmed;
+}
 
 export function getStudentRecord(data, student) {
   if (!data?.PAYMENTS_LOG) {
@@ -99,6 +109,92 @@ export function getOpenAccounts(data, location) {
     if (!bDate) return -1;
     return aDate.localeCompare(bDate);
   });
+}
+
+/**
+ * Group students into class cohorts for the per-cohort roster view.
+ *
+ * Cohort rules:
+ *  - 8 Weeks / Model Weekend / Photoshoot: one cohort per (program, location, startDate)
+ *  - Online Program: rolling — one cohort per (location, sale-month from depositDate)
+ *
+ * Each student carries a `paymentStatus`:
+ *  - "paid"      → outstanding ≤ 0 and no failed charges
+ *  - "ontrack"   → outstanding > 0, no failed charges (on payment plan)
+ *  - "attention" → outstanding > 0 AND at least one failed charge
+ *  - "cancelled" → enrollmentStatus === "Cancelled"
+ *
+ * Returns an array of cohort objects sorted by date descending (most recent first).
+ */
+export function getCohorts(data, location) {
+  if (!data?.STUDENTS_MASTER) return [];
+
+  let students = data.STUDENTS_MASTER;
+  if (location && location !== 'ALL') {
+    students = students.filter((s) => s.location === location);
+  }
+  // Skip rows with no program
+  students = students.filter((s) => (s.program || '').trim());
+
+  const cohorts = new Map();
+
+  students.forEach((s) => {
+    const program = normalizeProgram(s.program);
+    const isOnline = program === 'Online Program';
+
+    // Cohort key: program + location + (startDate OR sale-month for Online)
+    let groupKey;
+    let label;
+    if (isOnline) {
+      const month = (s.depositDate || '').slice(0, 7);
+      if (!month) return; // skip if we can't bucket it
+      groupKey = `${program}|${s.location}|${month}`;
+      label = month; // YYYY-MM for sort + display
+    } else {
+      const start = (s.startDate || '').slice(0, 10);
+      if (!start) return; // skip if no start date
+      groupKey = `${program}|${s.location}|${start}`;
+      label = start; // YYYY-MM-DD for sort + display
+    }
+
+    if (!cohorts.has(groupKey)) {
+      cohorts.set(groupKey, {
+        program,
+        location: s.location,
+        isOnline,
+        startDate: isOnline ? null : label,
+        endDate: isOnline ? null : (s.endDate || '').slice(0, 10) || null,
+        saleMonth: isOnline ? label : null,
+        sortKey: label,
+        students: [],
+      });
+    }
+
+    // Per-student payment status
+    const outstanding = s.adjustedBalanceOwed || 0;
+    const cancelled = (s.enrollmentStatus || '').trim().toLowerCase() === 'cancelled';
+    const failedCount = (data.PAYMENTS_LOG || []).filter(
+      (p) => p.studentEmail && s.email
+        && p.studentEmail.toLowerCase() === s.email.toLowerCase()
+        && p.paymentStatus === 'charge_failed'
+    ).length;
+
+    let paymentStatus;
+    if (cancelled) paymentStatus = 'cancelled';
+    else if (outstanding <= 0) paymentStatus = 'paid';
+    else if (failedCount > 0) paymentStatus = 'attention';
+    else paymentStatus = 'ontrack';
+
+    cohorts.get(groupKey).students.push({
+      ...s,
+      outstanding,
+      failedCount,
+      paymentStatus,
+    });
+  });
+
+  // Sort cohorts by date descending (most recent / upcoming first)
+  return Array.from(cohorts.values()).sort((a, b) => (b.sortKey || '').localeCompare(a.sortKey || ''));
 }
 
 export function searchStudents(data, query, location) {

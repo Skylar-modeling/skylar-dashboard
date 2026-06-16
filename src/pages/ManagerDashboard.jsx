@@ -11,7 +11,8 @@ import ChartCard from '../components/ChartCard';
 import EmptyState from '../components/EmptyState';
 import SalesByChannel from '../components/SalesByChannel';
 import OpenAccountsList from '../components/OpenAccountsList';
-import { getOpenAccounts } from '../utils/studentCalculations';
+import CohortRoster from '../components/CohortRoster';
+import { getOpenAccounts, getCohorts } from '../utils/studentCalculations';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
 import {
@@ -100,6 +101,7 @@ export default function ManagerDashboard() {
   const prevSalesByChannel = useMemo(() => data ? getSalesByChannel(data, compMonth, location) : null, [data, compMonth, location]);
   const cashInOffice = useMemo(() => data ? getCashInOffice(data, month) : null, [data, month]);
   const openAccounts = useMemo(() => data ? getOpenAccounts(data, location) : [], [data, location]);
+  const cohorts = useMemo(() => data ? getCohorts(data, location) : [], [data, location]);
 
   const locationCash = useMemo(() => {
     if (!cashInOffice) return null;
@@ -337,11 +339,7 @@ export default function ManagerDashboard() {
         <EmptyState title="No cash data" message="Cash tracking data is not yet available for this location." />
       )}
 
-      {/* Section 6: Open Accounts (drill-down of Outstanding Receivables) */}
-      <SectionTitle>Open Accounts</SectionTitle>
-      <OpenAccountsList accounts={openAccounts} data={data} />
-
-      {/* Section 7: Sales Activity by Channel */}
+      {/* Section 6: Sales Activity by Channel */}
       <SectionTitle>Sales Activity by Channel</SectionTitle>
       <SalesByChannel data={salesByChannel} prevData={prevSalesByChannel} />
 
@@ -365,6 +363,14 @@ export default function ManagerDashboard() {
       ) : (
         <EmptyState title="No trend data" message="Revenue trend data will appear once multiple months of data are available." />
       )}
+
+      {/* Section 8: Per-cohort class roster — scan workflow for "is anyone misplaced?" */}
+      <SectionTitle>Class Roster by Cohort</SectionTitle>
+      <CohortRoster cohorts={cohorts} data={data} location={location} />
+
+      {/* Section 9: Open Accounts (drill-down of Outstanding Receivables) — pinned to bottom because the list is long */}
+      <SectionTitle>Open Accounts</SectionTitle>
+      <OpenAccountsList accounts={openAccounts} data={data} />
 
       <div className="h-12" />
     </Layout>
