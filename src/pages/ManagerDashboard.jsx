@@ -13,8 +13,10 @@ import SalesByChannel from '../components/SalesByChannel';
 import OpenAccountsList from '../components/OpenAccountsList';
 import CohortRoster from '../components/CohortRoster';
 import NeedsAttention from '../components/NeedsAttention';
+import DunningWorklist from '../components/DunningWorklist';
 import {
   getOpenAccounts, getCohorts, getRepeatedFailures, getCancelledButBilled, getOpenDisputes,
+  getDunningList,
 } from '../utils/studentCalculations';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
@@ -110,6 +112,7 @@ export default function ManagerDashboard() {
     cancelledButBilled: data ? getCancelledButBilled(data, location) : [],
     openDisputes: data ? getOpenDisputes(data, location) : [],
   }), [data, location]);
+  const dunningList = useMemo(() => data ? getDunningList(data, location) : [], [data, location]);
 
   const locationCash = useMemo(() => {
     if (!cashInOffice) return null;
@@ -383,6 +386,10 @@ export default function ManagerDashboard() {
       {/* Section 9: Open Accounts (drill-down of Outstanding Receivables) — pinned to bottom because the list is long */}
       <SectionTitle>Open Accounts</SectionTitle>
       <OpenAccountsList accounts={openAccounts} data={data} />
+
+      {/* Section 10: Dunning Worklist — all failing invoices in last 30 days */}
+      <SectionTitle>Dunning Worklist</SectionTitle>
+      <DunningWorklist items={dunningList} data={data} />
 
       <div className="h-12" />
     </Layout>

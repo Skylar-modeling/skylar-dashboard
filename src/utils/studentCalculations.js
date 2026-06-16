@@ -212,9 +212,72 @@ export function getCohorts(data, location) {
   return Array.from(cohorts.values()).sort((a, b) => (b.sortKey || '').localeCompare(a.sortKey || ''));
 }
 
-// Only show repeat-failure invoices whose latest attempt is this fresh.
-// Older invoices are either resolved or abandoned and would just be noise.
+// Days back from "now" we consider for the dunning views. Older invoices are
+// either resolved or abandoned and would just be noise.
 const REPEAT_FAILURE_RECENCY_DAYS = 30;
+const DUNNING_RECENCY_DAYS = 30;
+
+/**
+ * Full dunning worklist — every invoice whose latest failed-charge attempt is
+ * within the last 30 days, including 1st-strike failures (the inbox card only
+ * surfaces 2+ strikes). Sorted by attempt count desc, then most-recent attempt.
+ */
+export function getDunningList(data, location) {
+  if (!data?.PAYMENTS_LOG || !data?.STUDENTS_MASTER) return [];
+
+  const byInvoice = new Map();
+  data.PAYMENTS_LOG.forEach((p) => {
+    if (!isFailedPayment(p)) return;
+    if (!p.stripeInvoiceId) return;
+    if (location && location !== 'ALL' && p.location && p.location !== location) return;
+    const arr = byInvoice.get(p.stripeInvoiceId) || [];
+    arr.push(p);
+    byInvoice.set(p.stripeInvoiceId, arr);
+  });
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - DUNNING_RECENCY_DAYS);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  const out = [];
+  byInvoice.forEach((attempts, invoiceId) => {
+    const sorted = [...attempts].sort((a, b) => (b.paymentDate || '').localeCompare(a.paymentDate || ''));
+    const lastDate = (sorted[0].paymentDate || '').slice(0, 10);
+    if (lastDate < cutoffStr) return;
+
+    const firstDate = (sorted[sorted.length - 1].paymentDate || '').slice(0, 10);
+    const email = attempts[0].studentEmail || '';
+    const student = data.STUDENTS_MASTER.find(
+      (s) => s.email && email && s.email.toLowerCase() === email.toLowerCase()
+    );
+    if (location && location !== 'ALL' && student && student.location !== location) return;
+
+    // Days delinquent = days since the first failed attempt on this invoice
+    const daysDelinquent = firstDate
+      ? Math.floor((Date.now() - new Date(firstDate).getTime()) / 86400000)
+      : null;
+
+    out.push({
+      invoiceId,
+      invoiceNumber: sorted[0].invoiceNumber || '',
+      studentName: student?.fullName || email,
+      studentEmail: email,
+      program: student?.program || '',
+      studentLocation: student?.location || sorted[0].location || '',
+      attemptCount: attempts.length,
+      firstAttemptDate: firstDate,
+      lastAttemptDate: lastDate,
+      daysDelinquent,
+      lastAmount: sorted[0].paymentAmount || 0,
+      student,
+    });
+  });
+
+  return out.sort((a, b) => {
+    if (b.attemptCount !== a.attemptCount) return b.attemptCount - a.attemptCount;
+    return (b.lastAttemptDate || '').localeCompare(a.lastAttemptDate || '');
+  });
+}
 
 /**
  * Detect "repeat-failure" invoices: same Stripe Invoice ID with 2+ charge_failed
