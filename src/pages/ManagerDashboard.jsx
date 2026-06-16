@@ -14,9 +14,10 @@ import OpenAccountsList from '../components/OpenAccountsList';
 import CohortRoster from '../components/CohortRoster';
 import NeedsAttention from '../components/NeedsAttention';
 import DunningWorklist from '../components/DunningWorklist';
+import ARAging from '../components/ARAging';
 import {
   getOpenAccounts, getCohorts, getRepeatedFailures, getCancelledButBilled, getOpenDisputes,
-  getDunningList,
+  getDunningList, getARAging,
 } from '../utils/studentCalculations';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
@@ -113,6 +114,7 @@ export default function ManagerDashboard() {
     openDisputes: data ? getOpenDisputes(data, location) : [],
   }), [data, location]);
   const dunningList = useMemo(() => data ? getDunningList(data, location) : [], [data, location]);
+  const arAging = useMemo(() => getARAging(data, location), [data, location]);
 
   const locationCash = useMemo(() => {
     if (!cashInOffice) return null;
@@ -383,7 +385,11 @@ export default function ManagerDashboard() {
       <SectionTitle>Class Roster by Cohort</SectionTitle>
       <CohortRoster cohorts={cohorts} data={data} location={location} />
 
-      {/* Section 9: Open Accounts (drill-down of Outstanding Receivables) — pinned to bottom because the list is long */}
+      {/* Section 9: AR Aging — bucket the open balance by staleness of last payment */}
+      <SectionTitle>Accounts Receivable Aging</SectionTitle>
+      <ARAging buckets={arAging} />
+
+      {/* Section 10: Open Accounts (drill-down of Outstanding Receivables) — pinned to bottom because the list is long */}
       <SectionTitle>Open Accounts</SectionTitle>
       <OpenAccountsList accounts={openAccounts} data={data} />
 

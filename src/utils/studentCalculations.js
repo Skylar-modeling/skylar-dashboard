@@ -388,6 +388,76 @@ export function getCancelledButBilled(data, location) {
 }
 
 /**
+ * Accounts Receivable aging — bucket every open account by how stale the
+ * student's last successful payment is, relative to a 30-day expected cadence.
+ *
+ *   Current   = last payment within 30 days (not overdue)
+ *   1-30      = 31-60 days since last payment (~1 missed cycle)
+ *   31-60     = 61-90
+ *   61-90     = 91-120
+ *   90+       = 121+ days since last payment
+ *
+ * For students with no successful payment ever (deposit only), the deposit
+ * date is used as the "last activity" anchor instead.
+ *
+ * Returns an array of 5 buckets in age order with { key, label, count, total, students }.
+ */
+export function getARAging(data, location) {
+  if (!data?.STUDENTS_MASTER) {
+    return [
+      { key: 'current', label: 'Current', count: 0, total: 0, students: [] },
+      { key: 'b1_30',   label: '1–30 days',  count: 0, total: 0, students: [] },
+      { key: 'b31_60',  label: '31–60 days', count: 0, total: 0, students: [] },
+      { key: 'b61_90',  label: '61–90 days', count: 0, total: 0, students: [] },
+      { key: 'b90plus', label: '90+ days',   count: 0, total: 0, students: [] },
+    ];
+  }
+
+  const todayMs = Date.now();
+  const openStudents = data.STUDENTS_MASTER.filter((s) => {
+    if ((s.adjustedBalanceOwed || 0) <= 0) return false;
+    if (location && location !== 'ALL' && s.location !== location) return false;
+    return true;
+  });
+
+  const buckets = {
+    current: { key: 'current', label: 'Current',    count: 0, total: 0, students: [] },
+    b1_30:   { key: 'b1_30',   label: '1–30 days',  count: 0, total: 0, students: [] },
+    b31_60:  { key: 'b31_60',  label: '31–60 days', count: 0, total: 0, students: [] },
+    b61_90:  { key: 'b61_90',  label: '61–90 days', count: 0, total: 0, students: [] },
+    b90plus: { key: 'b90plus', label: '90+ days',   count: 0, total: 0, students: [] },
+  };
+
+  openStudents.forEach((s) => {
+    // Anchor = last successful Paid payment, else deposit date, else now (treat as Current)
+    const paidDates = (data.PAYMENTS_LOG || [])
+      .filter((p) => p.studentEmail && s.email && p.studentEmail.toLowerCase() === s.email.toLowerCase())
+      .filter((p) => p.paymentStatus === 'Paid' && p.paymentDate)
+      .map((p) => p.paymentDate)
+      .sort();
+    const anchor = paidDates.length > 0 ? paidDates[paidDates.length - 1] : s.depositDate;
+    let daysSince = 0;
+    if (anchor) {
+      const t = Date.parse(anchor);
+      if (!isNaN(t)) daysSince = Math.floor((todayMs - t) / 86400000);
+    }
+
+    let bucket;
+    if (daysSince <= 30) bucket = 'current';
+    else if (daysSince <= 60) bucket = 'b1_30';
+    else if (daysSince <= 90) bucket = 'b31_60';
+    else if (daysSince <= 120) bucket = 'b61_90';
+    else bucket = 'b90plus';
+
+    buckets[bucket].count += 1;
+    buckets[bucket].total += (s.adjustedBalanceOwed || 0);
+    buckets[bucket].students.push({ ...s, daysSinceLastPayment: daysSince });
+  });
+
+  return [buckets.current, buckets.b1_30, buckets.b31_60, buckets.b61_90, buckets.b90plus];
+}
+
+/**
  * Detect open / recent Stripe disputes.
  * Disputes are real money risk — Stripe pulls funds when one is opened, and
  * if not won within the deadline (~20 days), you lose the money + a fee.
