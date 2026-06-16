@@ -16,9 +16,10 @@ import NeedsAttention from '../components/NeedsAttention';
 import DunningWorklist from '../components/DunningWorklist';
 import ARAging from '../components/ARAging';
 import StaleStatusList from '../components/StaleStatusList';
+import ActivityFeed from '../components/ActivityFeed';
 import {
   getOpenAccounts, getCohorts, getRepeatedFailures, getCancelledButBilled, getOpenDisputes,
-  getDunningList, getARAging, getStaleStatusItems,
+  getDunningList, getARAging, getStaleStatusItems, getRecentActivity,
 } from '../utils/studentCalculations';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
@@ -117,6 +118,7 @@ export default function ManagerDashboard() {
   const dunningList = useMemo(() => data ? getDunningList(data, location) : [], [data, location]);
   const arAging = useMemo(() => getARAging(data, location), [data, location]);
   const staleStatus = useMemo(() => data ? getStaleStatusItems(data, location) : [], [data, location]);
+  const recentActivity = useMemo(() => data ? getRecentActivity(data, location, 7) : [], [data, location]);
 
   const locationCash = useMemo(() => {
     if (!cashInOffice) return null;
@@ -187,6 +189,10 @@ export default function ManagerDashboard() {
       {/* Needs Attention — prioritized worklist pinned to the very top */}
       <SectionTitle>Needs Attention</SectionTitle>
       <NeedsAttention alerts={alerts} data={data} />
+
+      {/* Recent Activity — chronological 7-day feed of every meaningful event */}
+      <SectionTitle>Recent Activity (last 7 days)</SectionTitle>
+      <ActivityFeed events={recentActivity} data={data} />
 
       {/* Section 1: Revenue & Sales */}
       <SectionTitle>Revenue &amp; Sales</SectionTitle>

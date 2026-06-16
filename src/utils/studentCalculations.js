@@ -617,6 +617,101 @@ export function getOpenDisputes(data, location) {
   return out.sort((a, b) => (b.latestDate || '').localeCompare(a.latestDate || ''));
 }
 
+/**
+ * Recent activity feed — every notable event in the last `days` days,
+ * merged from STUDENTS_MASTER (enrollments, cancellations) and PAYMENTS_LOG
+ * (paid charges, failed charges, refunds, dispute lifecycle). Sorted
+ * reverse-chronological (most recent first), capped at 100 events.
+ *
+ * Each event = { date, type, label, severity, studentName, studentEmail, amount, student }
+ */
+export function getRecentActivity(data, location, days = 7) {
+  if (!data) return [];
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const events = [];
+
+  const findStudentByEmail = (email) => {
+    if (!email || !data.STUDENTS_MASTER) return null;
+    return data.STUDENTS_MASTER.find(
+      (s) => s.email && s.email.toLowerCase() === email.toLowerCase()
+    ) || null;
+  };
+
+  // Enrollments and cancellations from STUDENTS_MASTER
+  (data.STUDENTS_MASTER || []).forEach((s) => {
+    if (location && location !== 'ALL' && s.location !== location) return;
+
+    const depDate = (s.depositDate || '').slice(0, 10);
+    if (depDate && depDate >= cutoffStr) {
+      events.push({
+        date: depDate,
+        type: 'enrollment',
+        label: 'New enrollment',
+        severity: 'green',
+        studentName: s.fullName,
+        studentEmail: s.email,
+        amount: s.contractPrice || 0,
+        student: s,
+      });
+    }
+
+    const cancDate = (s.cancellationDate || '').slice(0, 10);
+    if (cancDate && cancDate >= cutoffStr) {
+      events.push({
+        date: cancDate,
+        type: 'cancellation',
+        label: 'Cancellation',
+        severity: 'amber',
+        studentName: s.fullName,
+        studentEmail: s.email,
+        amount: 0,
+        student: s,
+      });
+    }
+  });
+
+  // Payment events from PAYMENTS_LOG
+  (data.PAYMENTS_LOG || []).forEach((p) => {
+    const pDate = (p.paymentDate || '').slice(0, 10);
+    if (!pDate || pDate < cutoffStr) return;
+    if (location && location !== 'ALL' && p.location && p.location !== location) return;
+
+    const student = findStudentByEmail(p.studentEmail);
+    if (location && location !== 'ALL' && student && student.location !== location) return;
+    const name = student?.fullName || p.studentEmail || '(unknown)';
+
+    if (isFailedPayment(p)) {
+      events.push({
+        date: pDate, type: 'failed', label: 'Failed charge', severity: 'red',
+        studentName: name, studentEmail: p.studentEmail, amount: p.paymentAmount || 0, student,
+      });
+    } else if (isDisputeEvent(p)) {
+      const lifecycle = p.paymentStatus.replace('charge.dispute.', '');
+      events.push({
+        date: pDate, type: 'dispute', label: `Dispute · ${lifecycle}`, severity: 'red',
+        studentName: name, studentEmail: p.studentEmail, amount: p.paymentAmount || 0, student,
+      });
+    } else if ((p.paymentStatus || '').toLowerCase() === 'paid' && String(p.refunded).toLowerCase() !== 'yes') {
+      events.push({
+        date: pDate, type: 'paid', label: 'Paid charge', severity: 'green',
+        studentName: name, studentEmail: p.studentEmail, amount: p.paymentAmount || 0, student,
+      });
+    } else if ((p.paymentStatus || '').toLowerCase() === 'refunded' || String(p.refunded).toLowerCase() === 'yes' || (p.paymentStatus || '').toLowerCase() === 'charge.refunded') {
+      events.push({
+        date: pDate, type: 'refunded', label: 'Refund', severity: 'amber',
+        studentName: name, studentEmail: p.studentEmail, amount: p.paymentAmount || 0, student,
+      });
+    }
+  });
+
+  return events
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .slice(0, 100);
+}
+
 export function searchStudents(data, query, location) {
   if (!data?.STUDENTS_MASTER || !query || query.trim().length < 2 || query.trim().length > 50) return [];
 
