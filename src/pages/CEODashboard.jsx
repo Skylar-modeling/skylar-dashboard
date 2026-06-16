@@ -12,7 +12,10 @@ import EmptyState from '../components/EmptyState';
 import SalesByChannel from '../components/SalesByChannel';
 import OpenAccountsList from '../components/OpenAccountsList';
 import CohortRoster from '../components/CohortRoster';
-import { getOpenAccounts, getCohorts } from '../utils/studentCalculations';
+import NeedsAttention from '../components/NeedsAttention';
+import {
+  getOpenAccounts, getCohorts, getRepeatedFailures, getCancelledButBilled, getOpenDisputes,
+} from '../utils/studentCalculations';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
 import { getCurrentMonth, getPreviousMonth, getSameMonthLastYear, getAvailableMonths, getLast6Months, getYTDMonths, formatMonthDisplay } from '../utils/dateHelpers';
@@ -138,6 +141,11 @@ export default function CEODashboard() {
   const cashInOffice = useMemo(() => data ? getCashInOffice(data, month) : null, [data, month]);
   const openAccounts = useMemo(() => data ? getOpenAccounts(data, location) : [], [data, location]);
   const cohorts = useMemo(() => data ? getCohorts(data, location) : [], [data, location]);
+  const alerts = useMemo(() => ({
+    repeatedFailures: data ? getRepeatedFailures(data, location) : [],
+    cancelledButBilled: data ? getCancelledButBilled(data, location) : [],
+    openDisputes: data ? getOpenDisputes(data, location) : [],
+  }), [data, location]);
   const topReps = useMemo(() => data ? getTopSalesReps(data, month, location) : [], [data, month, location]);
   const salesByChannel = useMemo(() => data ? getSalesByChannel(data, month, location) : null, [data, month, location]);
   const prevSalesByChannel = useMemo(() => data ? getSalesByChannel(data, compMonth, location) : null, [data, compMonth, location]);
@@ -195,6 +203,10 @@ export default function CEODashboard() {
           ))}
         </div>
       </div>
+
+      {/* Needs Attention — prioritized worklist pinned to the very top */}
+      <SectionTitle>Needs Attention</SectionTitle>
+      <NeedsAttention alerts={alerts} data={data} />
 
       {/* YTD Summary */}
       {ytdMetrics && (

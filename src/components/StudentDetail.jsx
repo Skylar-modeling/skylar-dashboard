@@ -4,7 +4,10 @@ export default function StudentDetail({ student, onClose }) {
   if (!student) return null;
 
   const successPayments = student.payments?.filter((p) => p.paymentStatus === 'Paid' && p.refunded !== 'Yes') || [];
-  const failedPayments = student.payments?.filter((p) => p.paymentStatus === 'charge_failed') || [];
+  const failedPayments = student.payments?.filter((p) => {
+    const s = (p.paymentStatus || '').toLowerCase();
+    return s === 'charge_failed' || s === 'charge.failed';
+  }) || [];
   const refundedPayments = student.payments?.filter((p) => p.refunded === 'Yes') || [];
 
   return (
@@ -216,7 +219,7 @@ function StatusBadge({ status, refunded }) {
       </span>
     );
   }
-  if (status === 'charge_failed') {
+  if (status === 'charge_failed' || status === 'charge.failed') {
     return (
       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--color-accent-red)]/15 text-[var(--color-accent-red)]">
         Failed

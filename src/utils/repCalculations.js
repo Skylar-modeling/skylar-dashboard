@@ -111,7 +111,10 @@ export function getRepClients(data, repName, month) {
       .filter((p) => p.paymentStatus === 'Paid' && String(p.refunded).toLowerCase() !== 'yes')
       .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
 
-    const failedCount = payments.filter((p) => p.paymentStatus === 'charge_failed').length;
+    const failedCount = payments.filter((p) => {
+      const s = (p.paymentStatus || '').toLowerCase();
+      return s === 'charge_failed' || s === 'charge.failed';
+    }).length;
     const refundedCount = payments.filter((p) => String(p.refunded).toLowerCase() === 'yes').length;
 
     const lastPayment = payments
@@ -119,7 +122,7 @@ export function getRepClients(data, repName, month) {
       .sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate))[0];
 
     let status = 'Active';
-    if (failedCount > 0 && (!lastPayment || lastPayment.paymentStatus === 'charge_failed')) {
+    if (failedCount > 0 && (!lastPayment || /^charge[._]failed$/i.test(lastPayment.paymentStatus || ''))) {
       status = 'Failed';
     }
     if (refundedCount > 0) {
@@ -163,7 +166,10 @@ export function getRepAllClients(data, repName) {
       .filter((p) => p.paymentStatus === 'Paid' && String(p.refunded).toLowerCase() !== 'yes')
       .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
 
-    const failedCount = payments.filter((p) => p.paymentStatus === 'charge_failed').length;
+    const failedCount = payments.filter((p) => {
+      const s = (p.paymentStatus || '').toLowerCase();
+      return s === 'charge_failed' || s === 'charge.failed';
+    }).length;
     const refundedCount = payments.filter((p) => String(p.refunded).toLowerCase() === 'yes').length;
 
     const lastPayment = payments
@@ -171,7 +177,7 @@ export function getRepAllClients(data, repName) {
       .sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate))[0];
 
     let status = 'Active';
-    if (failedCount > 0 && (!lastPayment || lastPayment.paymentStatus === 'charge_failed')) {
+    if (failedCount > 0 && (!lastPayment || /^charge[._]failed$/i.test(lastPayment.paymentStatus || ''))) {
       status = 'Failed';
     }
     if (refundedCount > 0) {

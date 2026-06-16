@@ -12,7 +12,10 @@ import EmptyState from '../components/EmptyState';
 import SalesByChannel from '../components/SalesByChannel';
 import OpenAccountsList from '../components/OpenAccountsList';
 import CohortRoster from '../components/CohortRoster';
-import { getOpenAccounts, getCohorts } from '../utils/studentCalculations';
+import NeedsAttention from '../components/NeedsAttention';
+import {
+  getOpenAccounts, getCohorts, getRepeatedFailures, getCancelledButBilled, getOpenDisputes,
+} from '../utils/studentCalculations';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
 import {
@@ -102,6 +105,11 @@ export default function ManagerDashboard() {
   const cashInOffice = useMemo(() => data ? getCashInOffice(data, month) : null, [data, month]);
   const openAccounts = useMemo(() => data ? getOpenAccounts(data, location) : [], [data, location]);
   const cohorts = useMemo(() => data ? getCohorts(data, location) : [], [data, location]);
+  const alerts = useMemo(() => ({
+    repeatedFailures: data ? getRepeatedFailures(data, location) : [],
+    cancelledButBilled: data ? getCancelledButBilled(data, location) : [],
+    openDisputes: data ? getOpenDisputes(data, location) : [],
+  }), [data, location]);
 
   const locationCash = useMemo(() => {
     if (!cashInOffice) return null;
@@ -168,6 +176,10 @@ export default function ManagerDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Needs Attention — prioritized worklist pinned to the very top */}
+      <SectionTitle>Needs Attention</SectionTitle>
+      <NeedsAttention alerts={alerts} data={data} />
 
       {/* Section 1: Revenue & Sales */}
       <SectionTitle>Revenue &amp; Sales</SectionTitle>
