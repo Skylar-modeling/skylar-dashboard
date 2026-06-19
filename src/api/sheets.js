@@ -100,6 +100,8 @@ function normalizeTabData(key, rows) {
       stripeStatus: col(r, 'Stripe Status'),
       // col W — total collected from Stripe + manual payments
       totalCollected: parseNumeric(col(r, 'Total Collected')),
+      // col AD — per-student refund total
+      refundAmount: parseNumeric(col(r, 'Refund')),
       // col AI — enrollment status drives cancellation-aware AK / AL formulas
       enrollmentStatus: col(r, 'Enrollment Status'),
       cancellationDate: col(r, 'Cancellation Date'),

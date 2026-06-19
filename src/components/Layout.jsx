@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useUser, useClerk } from '@clerk/clerk-react';
 import StudentSearch from './StudentSearch';
+import MonthlySalesDrawer from './MonthlySalesDrawer';
 import { CLERK_PUBLISHABLE_KEY } from '../config/constants';
 
 function formatTimeAgo(date) {
@@ -12,10 +13,11 @@ function formatTimeAgo(date) {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
-export default function Layout({ title, children, lastUpdated, onRefresh, sheetData, filterLocation }) {
+export default function Layout({ title, children, lastUpdated, onRefresh, sheetData, filterLocation, showMonthlySales }) {
   const location = useLocation();
   const isHome = location.pathname === '/';
   const [refreshCooldown, setRefreshCooldown] = useState(false);
+  const [monthlyOpen, setMonthlyOpen] = useState(false);
 
   const handleRefresh = useCallback(() => {
     if (refreshCooldown || !onRefresh) return;
@@ -40,6 +42,18 @@ export default function Layout({ title, children, lastUpdated, onRefresh, sheetD
             <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">{title}</h1>
           </div>
           <div className="flex items-center gap-3">
+            {showMonthlySales && sheetData && (
+              <button
+                onClick={() => setMonthlyOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+                title="Monthly Sales Overview"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-8 0h10m-13 0a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10z" />
+                </svg>
+                <span className="hidden sm:inline">Monthly Sales</span>
+              </button>
+            )}
             {sheetData && (
               <StudentSearch data={sheetData} location={filterLocation} />
             )}
@@ -64,6 +78,13 @@ export default function Layout({ title, children, lastUpdated, onRefresh, sheetD
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
         {children}
       </main>
+      {showMonthlySales && (
+        <MonthlySalesDrawer
+          open={monthlyOpen}
+          onClose={() => setMonthlyOpen(false)}
+          data={sheetData}
+        />
+      )}
     </div>
   );
 }

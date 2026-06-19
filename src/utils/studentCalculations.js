@@ -712,6 +712,78 @@ export function getRecentActivity(data, location, days = 7) {
     .slice(0, 100);
 }
 
+/**
+ * Monthly Sales Overview — group every student by Deposit Date month
+ * (YYYY-MM) and aggregate by location. Used by the side-drawer reconciliation
+ * view. Cancelled students are NOT filtered out (the prompt wants them counted
+ * toward the month they were sold). Rows where Deposit Date is blank are skipped.
+ *
+ * Returns months sorted newest-first. Each month entry:
+ *   { month, nySales, miamiSales, nyTotal, miamiTotal, refunds, netSold, students }
+ *
+ * Primary money column is Contract Price (col M) per the prompt — NOT
+ * Recognized Revenue (this is a "what was sold" reconciliation view).
+ */
+export function getMonthlySalesOverview(data) {
+  if (!data?.STUDENTS_MASTER) return [];
+
+  const byMonth = new Map();
+
+  data.STUDENTS_MASTER.forEach((s) => {
+    const month = (s.depositDate || '').slice(0, 7);
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) return; // skip blank / malformed
+
+    if (!byMonth.has(month)) {
+      byMonth.set(month, {
+        month,
+        nySales: 0,
+        miamiSales: 0,
+        nyTotal: 0,
+        miamiTotal: 0,
+        refunds: 0,
+        netSold: 0,
+        students: [],
+      });
+    }
+    const entry = byMonth.get(month);
+    const contract = s.contractPrice || 0;
+    const refund = s.refundAmount || 0;
+
+    if (s.location === 'New York') {
+      entry.nySales += 1;
+      entry.nyTotal += contract;
+    } else if (s.location === 'Miami') {
+      entry.miamiSales += 1;
+      entry.miamiTotal += contract;
+    }
+    entry.refunds += refund;
+
+    entry.students.push({
+      studentId: s.studentId,
+      fullName: s.fullName,
+      email: s.email,
+      location: s.location,
+      contractPrice: contract,
+      refundAmount: refund,
+      recognizedRevenue: s.recognizedRevenue || 0,
+      enrollmentStatus: (s.enrollmentStatus || '').trim() || 'Active',
+    });
+  });
+
+  // Net Sold and sort students within each month
+  byMonth.forEach((entry) => {
+    entry.netSold = entry.nyTotal + entry.miamiTotal - entry.refunds;
+    entry.students.sort((a, b) => {
+      const locA = a.location || '';
+      const locB = b.location || '';
+      if (locA !== locB) return locA.localeCompare(locB);
+      return (a.fullName || '').localeCompare(b.fullName || '');
+    });
+  });
+
+  return Array.from(byMonth.values()).sort((a, b) => b.month.localeCompare(a.month));
+}
+
 export function searchStudents(data, query, location) {
   if (!data?.STUDENTS_MASTER || !query || query.trim().length < 2 || query.trim().length > 50) return [];
 

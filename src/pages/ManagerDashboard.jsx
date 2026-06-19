@@ -154,7 +154,7 @@ export default function ManagerDashboard() {
 
   if (loading) {
     return (
-      <Layout title={`Manager Dashboard \u2014 ${locationLabel}`} lastUpdated={lastUpdated} onRefresh={refresh} sheetData={data} filterLocation={location}>
+      <Layout title={`Manager Dashboard \u2014 ${locationLabel}`} lastUpdated={lastUpdated} onRefresh={refresh} sheetData={data} filterLocation={location} showMonthlySales>
         <div className="flex items-center gap-4 mb-6">
           <div className="skeleton h-9 w-36" />
           <div className="skeleton h-9 w-48" />
@@ -167,7 +167,7 @@ export default function ManagerDashboard() {
   }
 
   return (
-    <Layout title={`Manager Dashboard \u2014 ${locationLabel}`} lastUpdated={lastUpdated} onRefresh={refresh} sheetData={data} filterLocation={location}>
+    <Layout title={`Manager Dashboard \u2014 ${locationLabel}`} lastUpdated={lastUpdated} onRefresh={refresh} sheetData={data} filterLocation={location} showMonthlySales>
       {/* Header controls */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <MonthSelector months={availableMonths.length > 0 ? availableMonths : [getCurrentMonth()]} selected={month} onChange={setSelectedMonth} />
