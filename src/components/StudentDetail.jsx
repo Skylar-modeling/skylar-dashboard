@@ -1,14 +1,20 @@
 import { formatCurrency } from '../utils/formatters';
+import { classifyPayment } from '../utils/studentCalculations';
 
 export default function StudentDetail({ student, onClose }) {
   if (!student) return null;
 
-  const successPayments = student.payments?.filter((p) => p.paymentStatus === 'Paid' && p.refunded !== 'Yes') || [];
-  const failedPayments = student.payments?.filter((p) => {
-    const s = (p.paymentStatus || '').toLowerCase();
-    return s === 'charge_failed' || s === 'charge.failed';
-  }) || [];
-  const refundedPayments = student.payments?.filter((p) => p.refunded === 'Yes') || [];
+  // Prefer semantic counts computed by getStudentRecord (source-of-truth aware).
+  // Fall back to classifying payments here if the parent passed a raw student.
+  const successCount = student.successfulCount != null
+    ? student.successfulCount
+    : (student.payments || []).filter((p) => classifyPayment(p) === 'success').length;
+  const failedCount = student.failedPayments != null
+    ? student.failedPayments
+    : (student.payments || []).filter((p) => classifyPayment(p) === 'failed').length;
+  const refundedCount = student.refundedCount != null
+    ? student.refundedCount
+    : (student.payments || []).filter((p) => classifyPayment(p) === 'refund').length;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[5vh]">
@@ -127,28 +133,35 @@ export default function StudentDetail({ student, onClose }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {student.payments.map((p, i) => (
-                      <tr
-                        key={p.paymentId || i}
-                        className="border-t border-[var(--color-border)] hover:bg-[var(--color-bg-primary)]/30 transition-colors"
-                      >
-                        <td className="px-3 py-2 text-[var(--color-text-secondary)]">
-                          {formatDate(p.paymentDate)}
-                        </td>
-                        <td className="px-3 py-2 text-[var(--color-text-primary)] font-medium">
-                          {formatCurrency(p.paymentAmount)}
-                        </td>
-                        <td className="px-3 py-2">
-                          <StatusBadge status={p.paymentStatus} refunded={p.refunded} />
-                        </td>
-                        <td className="px-3 py-2 text-[var(--color-text-muted)] hidden sm:table-cell">
-                          {p.source || '—'}
-                        </td>
-                        <td className="px-3 py-2 text-[var(--color-text-muted)] font-mono hidden sm:table-cell" title={p.invoiceNumber || p.stripeInvoiceId || ''}>
-                          {p.invoiceNumber || (p.stripeInvoiceId ? truncateId(p.stripeInvoiceId) : '—')}
-                        </td>
-                      </tr>
-                    ))}
+                    {student.payments.map((p, i) => {
+                      const kind = classifyPayment(p);
+                      const amt = p.paymentAmount || 0;
+                      const isNegative = amt < 0;
+                      return (
+                        <tr
+                          key={p.paymentId || i}
+                          className="border-t border-[var(--color-border)] hover:bg-[var(--color-bg-primary)]/30 transition-colors"
+                        >
+                          <td className="px-3 py-2 text-[var(--color-text-secondary)]">
+                            {formatDate(p.paymentDate)}
+                          </td>
+                          <td className={`px-3 py-2 font-medium ${isNegative ? 'text-[var(--color-accent-amber)]' : 'text-[var(--color-text-primary)]'}`}>
+                            {isNegative
+                              ? `-${formatCurrency(Math.abs(amt))}`
+                              : formatCurrency(amt)}
+                          </td>
+                          <td className="px-3 py-2">
+                            <StatusBadge kind={kind} rawStatus={p.paymentStatus} />
+                          </td>
+                          <td className="px-3 py-2 text-[var(--color-text-muted)] hidden sm:table-cell">
+                            {p.source || '—'}
+                          </td>
+                          <td className="px-3 py-2 text-[var(--color-text-muted)] font-mono hidden sm:table-cell" title={p.invoiceNumber || p.stripeInvoiceId || ''}>
+                            {p.invoiceNumber || (p.stripeInvoiceId ? truncateId(p.stripeInvoiceId) : '—')}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -159,15 +172,15 @@ export default function StudentDetail({ student, onClose }) {
           {student.payments && student.payments.length > 0 && (
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-[var(--color-bg-primary)]/50 rounded-lg border border-[var(--color-border)] px-3 py-2">
-                <div className="text-lg font-bold text-[var(--color-accent-green)]">{successPayments.length}</div>
+                <div className="text-lg font-bold text-[var(--color-accent-green)]">{successCount}</div>
                 <div className="text-[10px] text-[var(--color-text-muted)]">Successful</div>
               </div>
               <div className="bg-[var(--color-bg-primary)]/50 rounded-lg border border-[var(--color-border)] px-3 py-2">
-                <div className="text-lg font-bold text-[var(--color-accent-red)]">{failedPayments.length}</div>
+                <div className="text-lg font-bold text-[var(--color-accent-red)]">{failedCount}</div>
                 <div className="text-[10px] text-[var(--color-text-muted)]">Failed</div>
               </div>
               <div className="bg-[var(--color-bg-primary)]/50 rounded-lg border border-[var(--color-border)] px-3 py-2">
-                <div className="text-lg font-bold text-[var(--color-accent-amber)]">{refundedPayments.length}</div>
+                <div className="text-lg font-bold text-[var(--color-accent-amber)]">{refundedCount}</div>
                 <div className="text-[10px] text-[var(--color-text-muted)]">Refunded</div>
               </div>
             </div>
@@ -204,22 +217,23 @@ function FinanceCard({ label, value, color }) {
   );
 }
 
-function StatusBadge({ status, refunded }) {
-  if (refunded === 'Yes') {
+function StatusBadge({ kind, rawStatus }) {
+  // kind = 'success' | 'refund' | 'failed' | 'other' (from classifyPayment)
+  if (kind === 'refund') {
     return (
       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--color-accent-amber)]/15 text-[var(--color-accent-amber)]">
         Refunded
       </span>
     );
   }
-  if (status === 'Paid') {
+  if (kind === 'success') {
     return (
       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--color-accent-green)]/15 text-[var(--color-accent-green)]">
         Paid
       </span>
     );
   }
-  if (status === 'charge_failed' || status === 'charge.failed') {
+  if (kind === 'failed') {
     return (
       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--color-accent-red)]/15 text-[var(--color-accent-red)]">
         Failed
@@ -228,7 +242,7 @@ function StatusBadge({ status, refunded }) {
   }
   return (
     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--color-border)] text-[var(--color-text-muted)]">
-      {status || 'Unknown'}
+      {rawStatus || 'Unknown'}
     </span>
   );
 }

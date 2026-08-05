@@ -29,15 +29,33 @@ export function isDisputeEvent(p) {
   return s.startsWith('charge.dispute.');
 }
 
+// Classify a PAYMENTS_LOG row into one of: 'success' | 'refund' | 'failed' | 'other'
+// Handles the sheet's convention: refunds are Status="Paid" with negative amount and Category="Refund".
+export function classifyPayment(p) {
+  if (!p) return 'other';
+  const status = (p.paymentStatus || '').toLowerCase();
+  const cat = (p.paymentCategory || '').toLowerCase();
+  if (status === 'charge_failed' || status === 'charge.failed') return 'failed';
+  if (status === 'charge.refunded') return 'refund';
+  if (cat === 'refund' || cat === 'chargeback') return 'refund';
+  if (String(p.refunded).toLowerCase() === 'yes') return 'refund';
+  // A Status="Paid" row with a negative amount is a refund entry
+  if (status === 'paid' && (p.paymentAmount || 0) < 0) return 'refund';
+  if (status === 'paid' && (p.paymentAmount || 0) > 0) return 'success';
+  return 'other';
+}
+
 export function getStudentRecord(data, student) {
   if (!data?.PAYMENTS_LOG) {
+    const paid = student.totalCollected || 0;
     return {
       ...student,
-      amountPaid: 0,
-      // Prefer AL (AdjustedBalanceOwed) — cancellation-aware. Falls back to contract price for old data.
-      amountOutstanding: student.adjustedBalanceOwed != null ? student.adjustedBalanceOwed : student.contractPrice,
+      amountPaid: paid,
+      amountOutstanding: (student.contractPrice || 0) - paid,
       lateFees: 0,
       failedPayments: 0,
+      refundedCount: 0,
+      successfulCount: 0,
       payments: [],
     };
   }
@@ -56,25 +74,45 @@ export function getStudentRecord(data, student) {
     return dateB - dateA;
   });
 
-  const successfulPayments = payments.filter((p) => p.paymentStatus === 'Paid' && p.refunded !== 'Yes');
-  const failedPayments = payments.filter(isFailedPayment);
-  const refundedPayments = payments.filter((p) => p.refunded === 'Yes');
+  // ────────────────────────────────────────────────────────────────
+  // Amount Paid = STUDENTS_MASTER col W (Total Collected).
+  // The sheet's SUMIFS on Status="Paid" already nets negative refund rows correctly.
+  // We prefer W as the single source of truth. If it's missing (older row), we
+  // fall back to computing the same way: SUM of Status="Paid" amounts AS-IS
+  // (do NOT abs). Negative refund rows must reduce the sum.
+  // ────────────────────────────────────────────────────────────────
+  let amountPaid;
+  if (student.totalCollected != null && !isNaN(student.totalCollected) && student.totalCollected !== 0) {
+    amountPaid = student.totalCollected;
+  } else {
+    amountPaid = payments
+      .filter((p) => (p.paymentStatus || '').toLowerCase() === 'paid')
+      .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
+  }
 
-  const amountPaid = successfulPayments.reduce((sum, p) => sum + p.paymentAmount, 0);
-  const refundedAmount = refundedPayments.reduce((sum, p) => sum + p.paymentAmount, 0);
-  const netPaid = amountPaid - refundedAmount;
-  // Use AL (AdjustedBalanceOwed) — 0 when student is Cancelled, M−W otherwise.
-  // Falls back to the derived calc if the sheet column hasn't been populated yet.
-  const amountOutstanding = student.adjustedBalanceOwed != null
-    ? student.adjustedBalanceOwed
-    : Math.max(0, student.contractPrice - netPaid);
+  // Outstanding for the per-student record view = RAW (M − W), matching sheet col X.
+  // We intentionally do NOT use AL (AdjustedBalanceOwed) here because AL forces $0
+  // for cancelled students — hiding the fact that they were sold $X and only paid $Y.
+  // On the student ledger you want to see what was never collected regardless of
+  // enrollment status. (AR Aging / Open Accounts still use AL for the roll-up.)
+  const amountOutstanding = (student.contractPrice || 0) - amountPaid;
+
+  // Counts (per user spec) are semantic, independent of Amount Paid calc:
+  //   success  = positive-amount Paid rows (real charges that landed)
+  //   refund   = Category=Refund | Status=charge.refunded | Refunded=Yes | negative Paid rows
+  //   failed   = charge_failed | charge.failed
+  const successfulCount = payments.filter((p) => classifyPayment(p) === 'success').length;
+  const refundedCount = payments.filter((p) => classifyPayment(p) === 'refund').length;
+  const failedCount = payments.filter(isFailedPayment).length;
 
   return {
     ...student,
-    amountPaid: netPaid,
+    amountPaid,
     amountOutstanding,
-    lateFees: failedPayments.length, // Count of failed payment attempts
-    failedPayments: failedPayments.length,
+    lateFees: failedCount,
+    failedPayments: failedCount,
+    successfulCount,
+    refundedCount,
     payments: sortedPayments,
   };
 }

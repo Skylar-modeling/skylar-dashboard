@@ -146,6 +146,11 @@ function normalizeTabData(key, rows) {
       rep2Commission: parseNumeric(col(r, 'Rep 2 Commission')),
       paymentMonth: normalizeMonth(col(r, 'Payment Month')),
       refunded: col(r, 'Refunded'),
+      // Extra columns used by getStudentRecord to correctly classify refund rows.
+      // Refunds are stored as Status="Paid" negative-amount rows with Category="Refund",
+      // Cash Direction="Out". Reading these lets us surface a proper "Refunded" badge.
+      paymentCategory: col(r, 'Payment Category'),
+      cashDirection: col(r, 'Cash Direction'),
     }),
     SALES_REPS: (r) => ({
       name: col(r, 'Sales Rep'),
