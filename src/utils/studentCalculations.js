@@ -51,7 +51,10 @@ export function getStudentRecord(data, student) {
     return {
       ...student,
       amountPaid: paid,
-      amountOutstanding: (student.contractPrice || 0) - paid,
+      // Prefer AL (AdjustedBalanceOwed) — 0 when Cancelled.
+      amountOutstanding: student.adjustedBalanceOwed != null
+        ? student.adjustedBalanceOwed
+        : Math.max(0, (student.contractPrice || 0) - paid),
       lateFees: 0,
       failedPayments: 0,
       refundedCount: 0,
@@ -90,12 +93,12 @@ export function getStudentRecord(data, student) {
       .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
   }
 
-  // Outstanding for the per-student record view = RAW (M − W), matching sheet col X.
-  // We intentionally do NOT use AL (AdjustedBalanceOwed) here because AL forces $0
-  // for cancelled students — hiding the fact that they were sold $X and only paid $Y.
-  // On the student ledger you want to see what was never collected regardless of
-  // enrollment status. (AR Aging / Open Accounts still use AL for the roll-up.)
-  const amountOutstanding = (student.contractPrice || 0) - amountPaid;
+  // Outstanding = STUDENTS_MASTER col AL (AdjustedBalanceOwed) — 0 when a student
+  // is Cancelled (they don't owe anything further regardless of what they paid),
+  // else M − W. Falls back to derived contract - amountPaid capped at 0 if AL missing.
+  const amountOutstanding = student.adjustedBalanceOwed != null
+    ? student.adjustedBalanceOwed
+    : Math.max(0, (student.contractPrice || 0) - amountPaid);
 
   // Counts (per user spec) are semantic, independent of Amount Paid calc:
   //   success  = positive-amount Paid rows (real charges that landed)
