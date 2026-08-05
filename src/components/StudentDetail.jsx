@@ -35,9 +35,12 @@ export default function StudentDetail({ student, onClose }) {
               </svg>
             </button>
             <div>
-              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
-                {student.fullName || 'Unknown Student'}
-              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
+                  {student.fullName || 'Unknown Student'}
+                </h2>
+                <EnrollmentStatusPill status={student.enrollmentStatus} />
+              </div>
               <span className="text-xs text-[var(--color-text-muted)]">Student Record</span>
             </div>
           </div>
@@ -214,6 +217,24 @@ function FinanceCard({ label, value, color }) {
       <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">{label}</div>
       <div className="text-base font-bold" style={{ color: c }}>{value}</div>
     </div>
+  );
+}
+
+function EnrollmentStatusPill({ status }) {
+  const raw = (status || '').trim();
+  const s = raw.toLowerCase() || 'active'; // blank = Active per data convention
+  const label = raw || 'Active';
+  const style = s === 'cancelled'
+    ? 'bg-[var(--color-accent-red)]/15 text-[var(--color-accent-red)] border-[var(--color-accent-red)]/30'
+    : s === 'completed'
+      ? 'bg-[var(--color-text-muted)]/20 text-[var(--color-text-muted)] border-[var(--color-text-muted)]/30'
+      : s === 'paused' || s === 'pending'
+        ? 'bg-[var(--color-accent-amber)]/15 text-[var(--color-accent-amber)] border-[var(--color-accent-amber)]/30'
+        : 'bg-[var(--color-accent-green)]/15 text-[var(--color-accent-green)] border-[var(--color-accent-green)]/30';
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${style}`}>
+      {label}
+    </span>
   );
 }
 
