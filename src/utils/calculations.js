@@ -43,12 +43,68 @@ export function getAverageDealSize(data, month, location) {
   return revenue / count;
 }
 
+/**
+ * Actualized Revenue — computed directly from STUDENTS_MASTER using Option B:
+ *   - Active students → recognize FULL Contract Price, timed per program rules
+ *   - Cancelled students → recognize only what was Collected (col W), at start month
+ *
+ * Timing rules per program:
+ *   Online Program           → full amount at Deposit Date month
+ *   Model Weekend, Photoshoot → full amount at Start Date month
+ *   8 Weeks                   → contract / 8 per week for 8 weeks from Start Date
+ *
+ * The ACTUALIZED_REVENUE sheet tab is IGNORED. Its formula was inconsistent
+ * across programs (Model Weekend counted cancelled students' full contracts,
+ * inflating July 2026 to \$62,939 vs actual \$45,886 active) and multiple rows
+ * had corrupted month values (currency-formatted serial numbers). Computing
+ * from STUDENTS_MASTER keeps every downstream metric consistent.
+ */
 export function getActualizedRevenue(data, month, location) {
-  if (!data?.ACTUALIZED_REVENUE) return 0;
-  let rows = data.ACTUALIZED_REVENUE;
-  rows = filterByLocation(rows, location);
-  rows = rows.filter((r) => r.month === month);
-  return rows.reduce((sum, r) => sum + r.actualizedRevenue, 0);
+  if (!data?.STUDENTS_MASTER || !month) return 0;
+
+  const students = filterByLocation(data.STUDENTS_MASTER, location);
+  let total = 0;
+
+  students.forEach((s) => {
+    const program = (s.program || '').trim().toLowerCase();
+    const isCancelled = (s.enrollmentStatus || '').trim().toLowerCase() === 'cancelled';
+
+    if (isCancelled) {
+      // Cancelled: recognize only what was actually collected, at the enrollment's
+      // anchor month (Start Date if present, else Deposit Date).
+      const bucket = extractYearMonth(s.startDate) || extractYearMonth(s.depositDate);
+      if (bucket === month) total += (s.totalCollected || 0);
+      return;
+    }
+
+    const contract = s.contractPrice || 0;
+    if (contract <= 0) return;
+
+    if (program === 'online program') {
+      if (extractYearMonth(s.depositDate) === month) total += contract;
+      return;
+    }
+
+    if (program === '8 weeks') {
+      // 1/8 of contract per calendar week for 8 weeks from Start Date
+      if (!s.startDate) return;
+      const start = new Date(String(s.startDate).slice(0, 10) + 'T00:00:00Z');
+      if (isNaN(start.getTime())) return;
+      const perWeek = contract / 8;
+      for (let w = 0; w < 8; w++) {
+        const weekMs = start.getTime() + w * 7 * 86400000;
+        const wd = new Date(weekMs);
+        const wm = `${wd.getUTCFullYear()}-${String(wd.getUTCMonth() + 1).padStart(2, '0')}`;
+        if (wm === month) total += perWeek;
+      }
+      return;
+    }
+
+    // Model Weekend, Photoshoot (any case), or anything else — full amount at start
+    if (extractYearMonth(s.startDate) === month) total += contract;
+  });
+
+  return total;
 }
 
 // ─── Section 2: Profitability ───
