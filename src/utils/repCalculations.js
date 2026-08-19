@@ -53,11 +53,13 @@ export function getRepGrossCommission(data, repName, month) {
 }
 
 /**
- * Get the rep's sales count and their rank for a given month/location.
+ * Get the rep's sales count, rank, close/cancel rates, and avg deal size
+ * for a given month/location. Cancelled sales are attributed to the SALE month
+ * (not cancellation month) and excluded from the net sales count.
  */
 export function getRepSalesAndRank(data, repName, month, location) {
   if (!data?.STUDENTS_MASTER || !repName) {
-    return { salesCount: 0, rank: 0, totalReps: 0 };
+    return { salesCount: 0, rank: 0, totalReps: 0, cancellationRate: null, closeRate: null, avgDealSize: null, apptsTaken: 0 };
   }
 
   const students = data.STUDENTS_MASTER.filter((s) => {
@@ -67,25 +69,48 @@ export function getRepSalesAndRank(data, repName, month, location) {
     return true;
   });
 
-  // Build ranking for all reps
+  // Build ranking for all reps — non-cancelled sales only
   const repMap = {};
+  const repMeta = {};
   students.forEach((s) => {
     const rep = s.salesRep1;
     if (!rep) return;
-    if (!repMap[rep]) repMap[rep] = 0;
+    if (!repMap[rep]) { repMap[rep] = 0; repMeta[rep] = { cancelled: 0, total: 0, revenue: 0 }; }
+    const isCancelled = (s.enrollmentStatus || '').trim().toLowerCase() === 'cancelled';
+    repMeta[rep].total += 1;
+    if (isCancelled) {
+      repMeta[rep].cancelled += 1;
+      return;
+    }
     repMap[rep] += 1;
+    repMeta[rep].revenue += (s.recognizedRevenue || 0);
   });
 
-  const sorted = Object.entries(repMap)
-    .sort((a, b) => b[1] - a[1]);
-
+  const sorted = Object.entries(repMap).sort((a, b) => b[1] - a[1]);
   const myCount = repMap[repName] || 0;
   const myIndex = sorted.findIndex(([name]) => name === repName);
+  const myMeta = repMeta[repName] || { cancelled: 0, total: 0, revenue: 0 };
+
+  // Appointments taken from REP_ACTIVITY_LOG
+  let apptsTaken = 0;
+  if (data.REP_ACTIVITY_LOG) {
+    apptsTaken = data.REP_ACTIVITY_LOG
+      .filter((r) => r.salesRep === repName && r.month === month)
+      .filter((r) => !location || location === LOCATIONS.ALL || r.location === location)
+      .reduce((sum, r) => sum + (r.apptsTaken || 0), 0);
+  }
 
   return {
     salesCount: myCount,
     rank: myIndex >= 0 ? myIndex + 1 : sorted.length + 1,
     totalReps: sorted.length,
+    cancelledCount: myMeta.cancelled,
+    totalSold: myMeta.total,
+    revenueSold: myMeta.revenue,
+    apptsTaken,
+    closeRate: apptsTaken > 0 ? (myCount / apptsTaken) * 100 : null,
+    cancellationRate: myMeta.total > 0 ? (myMeta.cancelled / myMeta.total) * 100 : null,
+    avgDealSize: myCount > 0 ? myMeta.revenue / myCount : null,
   };
 }
 

@@ -46,21 +46,38 @@ function col(r, ...candidates) {
  */
 function normalizeMonth(val) {
   if (!val) return '';
-  const s = String(val).trim();
+  // Strip currency-style formatting ("$46,143.00" -> "46143.00") which happens when
+  // upstream automation writes a raw sheet serial into a currency-formatted Month cell.
+  const s = String(val).trim().replace(/[$,]/g, '');
   // Already YYYY-MM
   if (/^\d{4}-\d{2}$/.test(s)) return s;
+  // YYYY-MM-DD (or full ISO) — take the first 7 chars
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 7);
+  // Google Sheets serial number (day count from 1899-12-30). Range 20000-100000
+  // covers 1954-2173, safely excluding stray small ints or huge outliers.
+  const asNum = Number(s);
+  if (!isNaN(asNum) && asNum > 20000 && asNum < 100000) {
+    // 25569 = days between Sheets epoch (1899-12-30) and Unix epoch (1970-01-01)
+    const utcMs = (asNum - 25569) * 86400 * 1000;
+    const d = new Date(utcMs);
+    if (!isNaN(d.getTime())) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+      return `${y}-${m}`;
+    }
+  }
   // Try parsing "January 2026", "Jan 2026", etc.
-  const d = new Date(s + ' 1'); // Append day so Date can parse "January 2026"
+  const d = new Date(s + ' 1');
   if (!isNaN(d.getTime())) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     if (y > 2000) return `${y}-${m}`;
   }
-  // Last resort — try Date directly
+  // Last resort — try Date directly with UTC accessors
   const d2 = new Date(s);
   if (!isNaN(d2.getTime())) {
-    const y = d2.getFullYear();
-    const m = String(d2.getMonth() + 1).padStart(2, '0');
+    const y = d2.getUTCFullYear();
+    const m = String(d2.getUTCMonth() + 1).padStart(2, '0');
     if (y > 2000) return `${y}-${m}`;
   }
   return s;
@@ -244,6 +261,15 @@ function normalizeTabData(key, rows) {
       depositedToBank: col(r, 'Deposited to Bank?'),
       depositDate: col(r, 'Deposit Date'),
       recordedBy: col(r, 'Recorded By'),
+    }),
+    REP_ACTIVITY_LOG: (r) => ({
+      timestamp: col(r, 'Timestamp'),
+      shiftDate: col(r, 'Shift Date'),
+      location: col(r, 'Location'),
+      salesRep: col(r, 'Sales Rep'),
+      channel: col(r, 'Channel'),
+      apptsTaken: parseNumeric(col(r, 'Appts Taken')),
+      month: normalizeMonth(col(r, 'Month')) || normalizeMonth(col(r, 'Shift Date')),
     }),
     CASH_LEDGER: (r) => ({
       month: normalizeMonth(col(r, 'Month')),

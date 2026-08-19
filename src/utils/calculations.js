@@ -187,27 +187,55 @@ export function getCashInOffice(data, month) {
 
 // ─── Section 6: Top Sales Reps ───
 
+/**
+ * Sum of Appts Taken from REP_ACTIVITY_LOG for a rep × month × location.
+ */
+export function getRepAppointmentsTaken(data, repName, month, location) {
+  if (!data?.REP_ACTIVITY_LOG || !repName) return 0;
+  let rows = data.REP_ACTIVITY_LOG.filter((r) => r.salesRep === repName && r.month === month);
+  rows = filterByLocation(rows, location);
+  return rows.reduce((sum, r) => sum + (r.apptsTaken || 0), 0);
+}
+
+/**
+ * Per-rep performance for a month + location.
+ * Cancelled sales are attributed to the SALE month (via depositDate), not the
+ * cancellation month — a cancellation entered today for a sale from March
+ * reduces March's count for that rep.
+ *
+ * Returns rows sorted by non-cancelled sales count descending.
+ */
 export function getTopSalesReps(data, month, location, limit = 5) {
-  if (!data?.STUDENTS_MASTER || !data?.PAYMENTS_LOG) return [];
+  if (!data?.STUDENTS_MASTER) return [];
 
   let students = data.STUDENTS_MASTER.filter((r) => extractYearMonth(r.depositDate) === month);
   students = filterByLocation(students, location);
 
-  // Count and sum by rep
   const repMap = {};
   students.forEach((r) => {
     const rep = r.salesRep1;
     if (!rep) return;
-    if (!repMap[rep]) repMap[rep] = { name: rep, salesCount: 0, revenueSold: 0 };
-    repMap[rep].salesCount++;
+    if (!repMap[rep]) {
+      repMap[rep] = { name: rep, salesCount: 0, cancelledCount: 0, totalSold: 0, revenueSold: 0 };
+    }
+    const isCancelled = (r.enrollmentStatus || '').trim().toLowerCase() === 'cancelled';
+    repMap[rep].totalSold += 1;
+    if (isCancelled) {
+      repMap[rep].cancelledCount += 1;
+      return; // don't count cancelled toward net sales/revenue
+    }
+    repMap[rep].salesCount += 1;
     // Revenue credited to rep = AK (Recognized Revenue), not gross contract value
     repMap[rep].revenueSold += (r.recognizedRevenue || 0);
   });
 
-  // Commission per rep — read from COMMISSION_MONTHLY col H (pre-aggregated, cash-basis).
-  // Authoritative source — PAYMENTS_LOG rep commission columns are not maintained.
   Object.values(repMap).forEach((rep) => {
     rep.commission = getRepCommissionForMonth(data, rep.name, month, location);
+    const appts = getRepAppointmentsTaken(data, rep.name, month, location);
+    rep.apptsTaken = appts;
+    rep.closeRate = appts > 0 ? (rep.salesCount / appts) * 100 : null;
+    rep.cancellationRate = rep.totalSold > 0 ? (rep.cancelledCount / rep.totalSold) * 100 : null;
+    rep.avgDealSize = rep.salesCount > 0 ? rep.revenueSold / rep.salesCount : null;
   });
 
   return Object.values(repMap)

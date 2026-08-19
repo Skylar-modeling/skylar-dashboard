@@ -70,7 +70,7 @@ export default function ActivityFeed({ events, data }) {
   if (!events || events.length === 0) {
     return (
       <EmptyState
-        title="No activity in the last 7 days"
+        title="No activity in the last 30 days"
         message="Nothing has moved — no enrollments, cancellations, or payment events."
       />
     );
@@ -90,14 +90,14 @@ export default function ActivityFeed({ events, data }) {
           </FilterChip>
         ))}
         <div className="ml-auto text-[11px] text-[var(--color-text-muted)]">
-          Showing {formatNumber(visible.length)} of {formatNumber(events.length)} · last 7 days
+          Showing {formatNumber(visible.length)} of {formatNumber(events.length)} · last 30 days
         </div>
       </div>
 
       <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden max-h-[600px] overflow-y-auto">
         {visible.length === 0 ? (
           <div className="px-4 py-6 text-center text-sm text-[var(--color-text-muted)]">
-            No {filter} events in the last 7 days.
+            No {filter} events in the last 30 days.
           </div>
         ) : visible.map((e, i) => {
           const meta = TYPE_META[e.type] || { dot: 'bg-[var(--color-text-muted)]', icon: '·' };

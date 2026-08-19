@@ -119,7 +119,7 @@ export default function ManagerDashboard() {
   const dunningList = useMemo(() => data ? getDunningList(data, location) : [], [data, location]);
   const arAging = useMemo(() => getARAging(data, location), [data, location]);
   const staleStatus = useMemo(() => data ? getStaleStatusItems(data, location) : [], [data, location]);
-  const recentActivity = useMemo(() => data ? getRecentActivity(data, location, 7) : [], [data, location]);
+  const recentActivity = useMemo(() => data ? getRecentActivity(data, location, 30) : [], [data, location]);
 
   const locationCash = useMemo(() => {
     if (!cashInOffice) return null;
@@ -192,7 +192,7 @@ export default function ManagerDashboard() {
       <NeedsAttention alerts={alerts} data={data} />
 
       {/* Section 2: Recent Activity — chronological 7-day feed of every meaningful event */}
-      <SectionTitle>Recent Activity (last 7 days)</SectionTitle>
+      <SectionTitle>Recent Activity (last 30 days)</SectionTitle>
       <ActivityFeed events={recentActivity} data={data} />
 
       {/* Section 3: AR Aging — clickable buckets drill into Open Accounts below */}

@@ -155,7 +155,7 @@ export default function CEODashboard() {
   const dunningList = useMemo(() => data ? getDunningList(data, location) : [], [data, location]);
   const arAging = useMemo(() => getARAging(data, location), [data, location]);
   const staleStatus = useMemo(() => data ? getStaleStatusItems(data, location) : [], [data, location]);
-  const recentActivity = useMemo(() => data ? getRecentActivity(data, location, 7) : [], [data, location]);
+  const recentActivity = useMemo(() => data ? getRecentActivity(data, location, 30) : [], [data, location]);
   const topReps = useMemo(() => data ? getTopSalesReps(data, month, location) : [], [data, month, location]);
   const salesByChannel = useMemo(() => data ? getSalesByChannel(data, month, location) : null, [data, month, location]);
   const prevSalesByChannel = useMemo(() => data ? getSalesByChannel(data, compMonth, location) : null, [data, compMonth, location]);
@@ -420,7 +420,10 @@ export default function CEODashboard() {
         <DataTable
           columns={[
             { key: 'name', label: 'Rep Name' },
-            { key: 'salesCount', label: 'Sales Count' },
+            { key: 'salesCount', label: 'Sales' },
+            { key: 'apptsTaken', label: 'Appts' },
+            { key: 'closeRate', label: 'Close Rate', render: (v) => v != null ? formatPercent(v) : '—' },
+            { key: 'cancellationRate', label: 'Cancel Rate', render: (v) => v != null ? formatPercent(v) : '—' },
             { key: 'revenueSold', label: 'Revenue Sold', render: (v) => formatCurrency(v) },
             { key: 'commission', label: 'Commission Earned', render: (v) => formatCurrency(v) },
           ]}
@@ -460,13 +463,13 @@ export default function CEODashboard() {
         <EmptyState title="No trend data" message="Revenue trend data will appear once multiple months of data are available." />
       )}
 
-      {/* Section 10: Per-cohort class roster — scan workflow for "is anyone misplaced?" */}
+      {/* Section 10: Recent Activity — chronological 30-day feed (moved above Class Roster per layout request) */}
+      <SectionTitle>Recent Activity (last 30 days)</SectionTitle>
+      <ActivityFeed events={recentActivity} data={data} />
+
+      {/* Section 11: Per-cohort class roster — scan workflow for "is anyone misplaced?" */}
       <SectionTitle>Class Roster by Cohort</SectionTitle>
       <CohortRoster cohorts={cohorts} data={data} location={location} />
-
-      {/* Section 11: Recent Activity — chronological 7-day feed of every meaningful event */}
-      <SectionTitle>Recent Activity (last 7 days)</SectionTitle>
-      <ActivityFeed events={recentActivity} data={data} />
 
       {/* Section 12: Needs Attention — prioritized worklist of dispute risk / repeat failures / billed-after-cancel */}
       <SectionTitle>Needs Attention</SectionTitle>

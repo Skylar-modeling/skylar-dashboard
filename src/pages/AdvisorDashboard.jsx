@@ -11,14 +11,18 @@ import { LOCATIONS } from '../config/constants';
 import {
   getCurrentMonth, getPreviousMonth, getAvailableMonths,
 } from '../utils/dateHelpers';
-import { getSalesByChannel } from '../utils/calculations';
+import { getSalesByChannel, getRepAppointmentsTaken } from '../utils/calculations';
+import { formatPercent } from '../utils/formatters';
 
 function SectionTitle({ children }) {
   return <h2 className="text-base font-semibold text-[var(--color-text-primary)] mt-8 mb-4">{children}</h2>;
 }
 
 /**
- * Get top sales reps ranked by sales count — NO financial data (no revenue, no commission).
+ * Get sales rep ranking — NO financial data (no revenue, no commission).
+ * Cancelled sales attributed to the SALE month (not cancellation month) and
+ * excluded from the sales count. Close rate = sales / appointments taken.
+ * Cancel rate = cancelled / total sold.
  */
 function getRepRanking(data, month, location) {
   if (!data?.STUDENTS_MASTER) return [];
@@ -35,8 +39,18 @@ function getRepRanking(data, month, location) {
   students.forEach((s) => {
     const rep = s.salesRep1;
     if (!rep) return;
-    if (!repMap[rep]) repMap[rep] = { name: rep, salesCount: 0 };
-    repMap[rep].salesCount += 1;
+    if (!repMap[rep]) repMap[rep] = { name: rep, salesCount: 0, cancelledCount: 0, totalSold: 0 };
+    const isCancelled = (s.enrollmentStatus || '').trim().toLowerCase() === 'cancelled';
+    repMap[rep].totalSold += 1;
+    if (isCancelled) repMap[rep].cancelledCount += 1;
+    else repMap[rep].salesCount += 1;
+  });
+
+  Object.values(repMap).forEach((rep) => {
+    const appts = getRepAppointmentsTaken(data, rep.name, month, location);
+    rep.apptsTaken = appts;
+    rep.closeRate = appts > 0 ? (rep.salesCount / appts) * 100 : null;
+    rep.cancellationRate = rep.totalSold > 0 ? (rep.cancelledCount / rep.totalSold) * 100 : null;
   });
 
   return Object.values(repMap).sort((a, b) => b.salesCount - a.salesCount);
@@ -62,7 +76,10 @@ export default function AdvisorDashboard() {
   const repColumns = [
     { key: 'rank', label: '#', render: (_, __, i) => i + 1 },
     { key: 'name', label: 'Sales Rep' },
-    { key: 'salesCount', label: 'Sales This Month' },
+    { key: 'salesCount', label: 'Sales' },
+    { key: 'apptsTaken', label: 'Appts' },
+    { key: 'closeRate', label: 'Close Rate', render: (v) => v != null ? formatPercent(v) : '—' },
+    { key: 'cancellationRate', label: 'Cancel Rate', render: (v) => v != null ? formatPercent(v) : '—' },
   ];
 
   if (loading) {

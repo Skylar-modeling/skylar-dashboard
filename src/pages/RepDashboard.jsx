@@ -9,7 +9,7 @@ import EmptyState from '../components/EmptyState';
 import { useSheetData } from '../hooks/useSheetData';
 import { LOCATIONS, CLERK_PUBLISHABLE_KEY } from '../config/constants';
 import { getCurrentMonth, getPreviousMonth, getAvailableMonths } from '../utils/dateHelpers';
-import { formatCurrency, formatNumber } from '../utils/formatters';
+import { formatCurrency, formatNumber, formatPercent } from '../utils/formatters';
 import { calcChange, getRepYTDCommission } from '../utils/calculations';
 import {
   findRepByEmail,
@@ -157,7 +157,7 @@ export default function RepDashboard() {
 
       {/* Section 2: Your Sales */}
       <SectionTitle>Your Sales</SectionTitle>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <MetricCard
           label="Sales This Month"
           value={formatNumber(salesData?.cur.salesCount || 0)}
@@ -168,8 +168,21 @@ export default function RepDashboard() {
           value={salesData?.cur.salesCount > 0 ? `#${salesData.cur.rank} of ${salesData.cur.totalReps}` : 'N/A'}
         />
         <MetricCard
-          label="Total Reps Active"
-          value={formatNumber(salesData?.cur.totalReps || 0)}
+          label="Appts Taken"
+          value={formatNumber(salesData?.cur.apptsTaken || 0)}
+        />
+        <MetricCard
+          label="Close Rate"
+          value={salesData?.cur.closeRate != null ? formatPercent(salesData.cur.closeRate) : 'N/A'}
+          comparison={salesData?.prev.closeRate != null ? calcChange(salesData.cur.closeRate, salesData.prev.closeRate) : null}
+        />
+        <MetricCard
+          label="Cancel Rate"
+          value={salesData?.cur.cancellationRate != null ? formatPercent(salesData.cur.cancellationRate) : 'N/A'}
+        />
+        <MetricCard
+          label="Avg Deal Size"
+          value={salesData?.cur.avgDealSize != null ? formatCurrency(salesData.cur.avgDealSize) : 'N/A'}
         />
       </div>
 
