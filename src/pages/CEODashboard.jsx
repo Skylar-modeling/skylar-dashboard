@@ -424,6 +424,7 @@ export default function CEODashboard() {
             { key: 'apptsTaken', label: 'Appts' },
             { key: 'closeRate', label: 'Close Rate', render: (v) => v != null ? formatPercent(v) : '—' },
             { key: 'cancellationRate', label: 'Cancel Rate', render: (v) => v != null ? formatPercent(v) : '—' },
+            { key: 'avgDealSize', label: 'Avg Deal', render: (v) => v != null ? formatCurrency(v) : '—' },
             { key: 'revenueSold', label: 'Revenue Sold', render: (v) => formatCurrency(v) },
             { key: 'commission', label: 'Commission Earned', render: (v) => formatCurrency(v) },
           ]}

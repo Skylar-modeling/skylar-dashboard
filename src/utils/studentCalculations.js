@@ -748,9 +748,11 @@ export function getRecentActivity(data, location, days = 7) {
     }
   });
 
+  // Cap at 500 total events over the window. Previous 100 cap dropped older
+  // enrollments off the bottom because payments/charges vastly outnumber them.
   return events
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-    .slice(0, 100);
+    .slice(0, 500);
 }
 
 /**
