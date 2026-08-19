@@ -34,6 +34,37 @@ export function extractYearMonth(dateStr) {
   return `${y}-${m}`;
 }
 
+/**
+ * Format a date value for display without timezone shifting.
+ *
+ * The classic bug: `new Date("2026-08-18").toLocaleDateString()` parses the
+ * string as UTC midnight then renders in local time — so in New York (UTC-4)
+ * the display drops to "Aug 17". For YYYY-MM-DD strings we bypass Date entirely
+ * and parse the components as literal calendar values.
+ *
+ * `opts.year` accepts: undefined (no year), 'numeric' (2026), '2-digit' (26).
+ */
+export function formatShortDate(value, opts = {}) {
+  if (!value) return '—';
+  const s = String(value);
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if (iso) {
+    const [, y, m, d] = iso;
+    let out = `${months[+m - 1]} ${+d}`;
+    if (opts.year === 'numeric') out += `, ${y}`;
+    else if (opts.year === '2-digit') out += `, ${y.slice(2)}`;
+    return out;
+  }
+  // Non-ISO fallback — use Date but with UTC accessors to avoid the shift
+  const dt = new Date(s);
+  if (isNaN(dt.getTime())) return s;
+  let out = `${months[dt.getUTCMonth()]} ${dt.getUTCDate()}`;
+  if (opts.year === 'numeric') out += `, ${dt.getUTCFullYear()}`;
+  else if (opts.year === '2-digit') out += `, ${String(dt.getUTCFullYear()).slice(2)}`;
+  return out;
+}
+
 export function formatMonthDisplay(yyyymm) {
   if (!yyyymm) return '';
   const [y, m] = yyyymm.split('-').map(Number);

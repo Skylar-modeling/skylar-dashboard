@@ -1,5 +1,6 @@
 import { formatCurrency } from '../utils/formatters';
 import { classifyPayment } from '../utils/studentCalculations';
+import { formatShortDate } from '../utils/dateHelpers';
 
 export default function StudentDetail({ student, onClose }) {
   if (!student) return null;
@@ -269,14 +270,7 @@ function StatusBadge({ kind, rawStatus }) {
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return dateStr;
-  }
+  return formatShortDate(dateStr, { year: 'numeric' });
 }
 
 function truncateId(id) {

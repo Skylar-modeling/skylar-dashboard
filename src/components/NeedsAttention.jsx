@@ -3,16 +3,8 @@ import StudentDetail from './StudentDetail';
 import { getStudentRecord } from '../utils/studentCalculations';
 import { formatCurrency } from '../utils/formatters';
 
-function fmtDate(d) {
-  if (!d) return '—';
-  try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return d;
-    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-  } catch {
-    return d;
-  }
-}
+import { formatShortDate } from '../utils/dateHelpers';
+const fmtDate = (d) => formatShortDate(d, { year: '2-digit' });
 
 function AlertCard({ severity, icon, title, count, summary, expanded, onToggle, children }) {
   const colors = severity === 'red'

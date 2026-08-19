@@ -3,17 +3,9 @@ import StudentDetail from './StudentDetail';
 import EmptyState from './EmptyState';
 import { getStudentRecord } from '../utils/studentCalculations';
 import { formatCurrency, formatNumber } from '../utils/formatters';
+import { formatShortDate } from '../utils/dateHelpers';
 
-function fmtDate(d) {
-  if (!d) return '—';
-  try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return d;
-    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-  } catch {
-    return d;
-  }
-}
+const fmtDate = (d) => formatShortDate(d, { year: '2-digit' });
 
 function AttemptBadge({ count }) {
   const color = count >= 5

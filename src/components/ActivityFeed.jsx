@@ -3,17 +3,7 @@ import StudentDetail from './StudentDetail';
 import EmptyState from './EmptyState';
 import { getStudentRecord } from '../utils/studentCalculations';
 import { formatCurrency, formatNumber } from '../utils/formatters';
-
-function fmtDate(d) {
-  if (!d) return '—';
-  try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return d;
-    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  } catch {
-    return d;
-  }
-}
+import { formatShortDate as fmtDate } from '../utils/dateHelpers';
 
 const TYPE_META = {
   enrollment:    { dot: 'bg-[var(--color-accent-green)]',  icon: '+' },

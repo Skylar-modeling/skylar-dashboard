@@ -33,16 +33,8 @@ function StatusDot({ status }) {
   return <span className={`inline-block w-2 h-2 rounded-full ${meta.color}`} title={meta.label} />;
 }
 
-function fmtDate(d) {
-  if (!d) return '';
-  try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return d;
-    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return d;
-  }
-}
+import { formatShortDate } from '../utils/dateHelpers';
+const fmtDate = (d) => d ? formatShortDate(d, { year: 'numeric' }) : '';
 
 function fmtMonth(yyyymm) {
   if (!yyyymm) return '';

@@ -3,6 +3,7 @@ import StudentDetail from './StudentDetail';
 import EmptyState from './EmptyState';
 import { getStudentRecord } from '../utils/studentCalculations';
 import { formatCurrency } from '../utils/formatters';
+import { formatShortDate } from '../utils/dateHelpers';
 import { PROGRAMS } from '../config/constants';
 
 function FilterChip({ active, onClick, children, count }) {
@@ -42,16 +43,7 @@ function StatusBadge({ status }) {
   );
 }
 
-function fmtDate(d) {
-  if (!d) return '—';
-  try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return d;
-    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-  } catch {
-    return d;
-  }
-}
+const fmtDate = (d) => formatShortDate(d, { year: '2-digit' });
 
 /**
  * Open Accounts list — every student with Outstanding > $0, sorted by Start Date
