@@ -92,11 +92,17 @@ export default function StudentDetail({ student, onClose }) {
 
           {/* Financial Summary */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {/* Contract Price = gross contract value sold (col M). Distinct from Recognized Revenue (AK). Keep on M. */}
+            {/* Contract Price = original col M net of any daily-ops Adjustments.
+                Caption shows the base + adjustment so the source is legible. */}
             <FinanceCard
               label="Contract Price"
               value={formatCurrency(student.contractPrice)}
               color="blue"
+              caption={
+                student.adjustmentAmount
+                  ? `${formatCurrency(student.originalContractPrice)} ${student.adjustmentAmount < 0 ? '−' : '+'} ${formatCurrency(Math.abs(student.adjustmentAmount))} adj`
+                  : null
+              }
             />
             <FinanceCard
               label="Amount Paid"
@@ -204,7 +210,7 @@ function InfoItem({ label, value }) {
   );
 }
 
-function FinanceCard({ label, value, color }) {
+function FinanceCard({ label, value, color, caption }) {
   const colorMap = {
     blue: 'var(--color-accent-blue)',
     green: 'var(--color-accent-green)',
@@ -217,6 +223,9 @@ function FinanceCard({ label, value, color }) {
     <div className="bg-[var(--color-bg-primary)]/50 rounded-lg border border-[var(--color-border)] px-3 py-2">
       <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">{label}</div>
       <div className="text-base font-bold" style={{ color: c }}>{value}</div>
+      {caption && (
+        <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{caption}</div>
+      )}
     </div>
   );
 }
@@ -240,7 +249,14 @@ function EnrollmentStatusPill({ status }) {
 }
 
 function StatusBadge({ kind, rawStatus }) {
-  // kind = 'success' | 'refund' | 'failed' | 'other' (from classifyPayment)
+  // kind = 'success' | 'refund' | 'adjustment' | 'failed' | 'other' (from classifyPayment)
+  if (kind === 'adjustment') {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--color-accent-blue)]/15 text-[var(--color-accent-blue)]">
+        Adjustment
+      </span>
+    );
+  }
   if (kind === 'refund') {
     return (
       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--color-accent-amber)]/15 text-[var(--color-accent-amber)]">

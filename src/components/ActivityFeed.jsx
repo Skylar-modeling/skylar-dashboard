@@ -10,6 +10,7 @@ const TYPE_META = {
   paid:          { dot: 'bg-[var(--color-accent-green)]',  icon: '✓' },
   cancellation:  { dot: 'bg-[var(--color-accent-amber)]',  icon: '×' },
   refunded:      { dot: 'bg-[var(--color-accent-amber)]',  icon: '↩' },
+  adjustment:    { dot: 'bg-[var(--color-accent-blue)]',   icon: '±' },
   failed:        { dot: 'bg-[var(--color-accent-red)]',    icon: '!' },
   dispute:       { dot: 'bg-[var(--color-accent-red)]',    icon: '⚠' },
 };
@@ -21,6 +22,7 @@ const FILTERS = [
   { key: 'failed',       label: 'Failed' },
   { key: 'dispute',      label: 'Disputes' },
   { key: 'refunded',     label: 'Refunds' },
+  { key: 'adjustment',   label: 'Adjustments' },
   { key: 'paid',         label: 'Paid' },
 ];
 
@@ -122,6 +124,7 @@ export default function ActivityFeed({ events, data }) {
                   <div className={`text-sm font-medium ${
                     e.severity === 'red' ? 'text-[var(--color-accent-red)]'
                     : e.severity === 'amber' ? 'text-[var(--color-accent-amber)]'
+                    : e.severity === 'blue' ? 'text-[var(--color-accent-blue)]'
                     : 'text-[var(--color-text-primary)]'
                   }`}>
                     {formatCurrency(e.amount)}

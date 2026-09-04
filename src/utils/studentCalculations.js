@@ -29,15 +29,23 @@ export function isDisputeEvent(p) {
   return s.startsWith('charge.dispute.');
 }
 
-// Classify a PAYMENTS_LOG row into one of: 'success' | 'refund' | 'failed' | 'other'
-// Handles the sheet's convention: refunds are Status="Paid" with negative amount and Category="Refund".
+// Classify a PAYMENTS_LOG row into one of: 'success' | 'refund' | 'adjustment' | 'failed' | 'other'
+// Sheet conventions:
+//   refunds are Status="Paid" + negative amount + Category="Refund"
+//   adjustments come from the daily-ops form: Category="Adjustment" + Cash Direction Out/In
+//     (Out = reduce contract, In = increase contract). Must be caught BEFORE the
+//     negative-amount refund fallback so an Out adjustment isn't miscategorized as a refund.
 export function classifyPayment(p) {
   if (!p) return 'other';
   const status = (p.paymentStatus || '').toLowerCase();
   const cat = (p.paymentCategory || '').toLowerCase();
+  const txn = (p.cashTransactionType || '').toLowerCase();
   if (status === 'charge_failed' || status === 'charge.failed') return 'failed';
+  // Adjustment can be labeled in either the "Payment Category" or "Cash Transaction?" cell
+  // depending on how the daily-ops form filled the row.
+  if (cat === 'adjustment' || txn === 'adjustment') return 'adjustment';
   if (status === 'charge.refunded') return 'refund';
-  if (cat === 'refund' || cat === 'chargeback') return 'refund';
+  if (cat === 'refund' || cat === 'chargeback' || txn === 'refund' || txn === 'chargeback') return 'refund';
   if (String(p.refunded).toLowerCase() === 'yes') return 'refund';
   // A Status="Paid" row with a negative amount is a refund entry
   if (status === 'paid' && (p.paymentAmount || 0) < 0) return 'refund';
@@ -78,38 +86,61 @@ export function getStudentRecord(data, student) {
   });
 
   // ────────────────────────────────────────────────────────────────
-  // Amount Paid = STUDENTS_MASTER col W (Total Collected).
-  // The sheet's SUMIFS on Status="Paid" already nets negative refund rows correctly.
-  // We prefer W as the single source of truth. If it's missing (older row), we
-  // fall back to computing the same way: SUM of Status="Paid" amounts AS-IS
-  // (do NOT abs). Negative refund rows must reduce the sum.
+  // Adjustments (from the daily-ops form): Category="Adjustment", signed amount
+  // (Out is negative → reduces contract; In is positive → increases contract).
+  // These rows come in as Status="Paid", so col W already nets them — we back
+  // them out of Amount Paid and instead apply them to Contract Price.
+  // ────────────────────────────────────────────────────────────────
+  const adjustmentAmount = payments
+    .filter((p) => classifyPayment(p) === 'adjustment')
+    .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
+
+  const originalContractPrice = student.contractPrice || 0;
+  const adjustedContractPrice = originalContractPrice + adjustmentAmount;
+
+  // ────────────────────────────────────────────────────────────────
+  // Amount Paid = STUDENTS_MASTER col W (Total Collected), minus any adjustment
+  // rows that col W's SUMIFS(Status="Paid") swept in. Adjustments are contract
+  // changes, not payments — they belong on the contract side of the ledger.
+  // If W is missing (older row), we fall back to SUM of Status="Paid" AS-IS,
+  // excluding adjustment rows.
   // ────────────────────────────────────────────────────────────────
   let amountPaid;
   if (student.totalCollected != null && !isNaN(student.totalCollected) && student.totalCollected !== 0) {
-    amountPaid = student.totalCollected;
+    amountPaid = student.totalCollected - adjustmentAmount;
   } else {
     amountPaid = payments
-      .filter((p) => (p.paymentStatus || '').toLowerCase() === 'paid')
+      .filter((p) => (p.paymentStatus || '').toLowerCase() === 'paid' && classifyPayment(p) !== 'adjustment')
       .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
   }
 
-  // Outstanding = STUDENTS_MASTER col AL (AdjustedBalanceOwed) — 0 when a student
-  // is Cancelled (they don't owe anything further regardless of what they paid),
-  // else M − W. Falls back to derived contract - amountPaid capped at 0 if AL missing.
-  const amountOutstanding = student.adjustedBalanceOwed != null
-    ? student.adjustedBalanceOwed
-    : Math.max(0, (student.contractPrice || 0) - amountPaid);
+  // Outstanding:
+  //   Cancelled students → 0 (they don't owe further regardless of what was paid)
+  //   Otherwise → adjustedContract − amountPaid (adjustment-aware).
+  //   When there are no adjustments, this reduces to the sheet's AL formula
+  //   (M − W), so numbers stay identical for the >99% of students without one.
+  const isCancelled = (student.enrollmentStatus || '').trim().toLowerCase() === 'cancelled';
+  const amountOutstanding = isCancelled
+    ? 0
+    : Math.max(0, adjustedContractPrice - amountPaid);
 
   // Counts (per user spec) are semantic, independent of Amount Paid calc:
-  //   success  = positive-amount Paid rows (real charges that landed)
-  //   refund   = Category=Refund | Status=charge.refunded | Refunded=Yes | negative Paid rows
-  //   failed   = charge_failed | charge.failed
+  //   success    = positive-amount Paid rows (real charges that landed)
+  //   refund     = Category=Refund | Status=charge.refunded | Refunded=Yes | negative Paid rows
+  //   adjustment = Category=Adjustment (from daily-ops form)
+  //   failed     = charge_failed | charge.failed
   const successfulCount = payments.filter((p) => classifyPayment(p) === 'success').length;
   const refundedCount = payments.filter((p) => classifyPayment(p) === 'refund').length;
+  const adjustmentCount = payments.filter((p) => classifyPayment(p) === 'adjustment').length;
   const failedCount = payments.filter(isFailedPayment).length;
 
   return {
     ...student,
+    // Override with adjusted contract so every display uses the current agreed price.
+    contractPrice: adjustedContractPrice,
+    originalContractPrice,
+    adjustmentAmount,
+    adjustmentCount,
     amountPaid,
     amountOutstanding,
     lateFees: failedCount,
@@ -734,6 +765,13 @@ export function getRecentActivity(data, location, days = 7) {
       events.push({
         date: pDate, type: 'dispute', label: `Dispute · ${lifecycle}`, severity: 'red',
         studentName: name, studentEmail: p.studentEmail, amount: p.paymentAmount || 0, student,
+      });
+    } else if (classifyPayment(p) === 'adjustment') {
+      // Daily-ops contract adjustment — not a payment, not a refund.
+      const direction = (p.cashDirection || '').toLowerCase() === 'in' ? 'increase' : 'decrease';
+      events.push({
+        date: pDate, type: 'adjustment', label: `Contract ${direction}`, severity: 'blue',
+        studentName: name, studentEmail: p.studentEmail, amount: Math.abs(p.paymentAmount || 0), student,
       });
     } else if ((p.paymentStatus || '').toLowerCase() === 'paid' && String(p.refunded).toLowerCase() !== 'yes') {
       events.push({

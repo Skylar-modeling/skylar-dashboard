@@ -168,6 +168,9 @@ function normalizeTabData(key, rows) {
       // Cash Direction="Out". Reading these lets us surface a proper "Refunded" badge.
       paymentCategory: col(r, 'Payment Category'),
       cashDirection: col(r, 'Cash Direction'),
+      // "Cash Transaction?" column ("Refund" | "Adjustment" | blank). Daily-ops
+      // form writes "Adjustment" here for contract price changes.
+      cashTransactionType: col(r, 'Cash Transaction'),
     }),
     SALES_REPS: (r) => ({
       name: col(r, 'Sales Rep'),
