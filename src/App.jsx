@@ -8,6 +8,7 @@ import ManagerDashboard from './pages/ManagerDashboard';
 import AdvisorDashboard from './pages/AdvisorDashboard';
 import RepDashboard from './pages/RepDashboard';
 import AdminPage from './pages/AdminPage';
+import InboxPage from './pages/InboxPage';
 
 export default function App() {
   if (!CLERK_PUBLISHABLE_KEY) {
@@ -33,6 +34,8 @@ export default function App() {
           <Route path="/advisor/:locationSlug" element={<ProtectedRoute><AdvisorDashboard /></ProtectedRoute>} />
           <Route path="/rep/:locationSlug" element={<ProtectedRoute><RepDashboard /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+          {/* SMS Inbox — any signed-in user (rep, advisor, manager, CEO). */}
+          <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
     </ClerkProvider>

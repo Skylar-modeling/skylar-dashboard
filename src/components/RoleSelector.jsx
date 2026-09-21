@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SignIn, useUser } from '@clerk/clerk-react';
+import { SignIn, useUser, useAuth } from '@clerk/clerk-react';
 import StudentSearch from './StudentSearch';
 import { useSheetData } from '../hooks/useSheetData';
 import { getAllowedPaths, getDefaultLocationFilter, CLERK_PUBLISHABLE_KEY } from '../config/constants';
+import { unreadCount } from '../api/inbox';
 
 const chartIcon = (
   <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -42,6 +43,12 @@ const dollarIcon = (
   </svg>
 );
 
+const chatIcon = (
+  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+  </svg>
+);
+
 const allRoleCards = [
   { path: '/ceo', title: 'CEO', description: 'Company-wide overview', icon: chartIcon },
   { path: '/manager/new-york', title: 'Manager NYC', description: 'New York location metrics', icon: buildingIcon },
@@ -51,6 +58,7 @@ const allRoleCards = [
   { path: '/rep/new-york', title: 'Rep NYC', description: 'Your commission & clients', icon: dollarIcon },
   { path: '/rep/miami', title: 'Rep MIA', description: 'Your commission & clients', icon: dollarIcon },
   { path: '/admin', title: 'Admin', description: 'Manage users & roles', icon: gearIcon },
+  { path: '/inbox', title: 'SMS Inbox', description: 'Reply to inbound texts', icon: chatIcon, shared: true },
 ];
 
 const clerkAppearance = {
@@ -91,7 +99,7 @@ export default function RoleSelector() {
       <div className="min-h-screen flex flex-col items-center justify-center p-6">
         <TitleBlock />
         <p className="text-[var(--color-text-secondary)] text-lg mb-8">Select your dashboard view</p>
-        <RoleCards cards={allRoleCards.filter((c) => c.path !== '/admin')} navigate={navigate} />
+        <RoleCards cards={allRoleCards.filter((c) => c.path !== '/admin' && !c.shared)} navigate={navigate} />
       </div>
     );
   }
@@ -102,6 +110,8 @@ export default function RoleSelector() {
 function AuthenticatedSelector() {
   const navigate = useNavigate();
   const { isLoaded, isSignedIn, user } = useUser();
+  const auth = useAuth();
+  const [unread, setUnread] = useState(null);
   // Always pull data so the in-page search works as soon as the role selector renders.
   // useSheetData caches at the module level — subsequent dashboard mounts reuse the same response.
   const { data: sheetData } = useSheetData();
@@ -111,12 +121,29 @@ function AuthenticatedSelector() {
   const visibleCards = allRoleCards.filter((c) => allowedPaths.includes(c.path));
   const searchLocation = getDefaultLocationFilter(roles);
 
-  // Auto-redirect if user only has 1 dashboard view
+  // Auto-redirect if user only has 1 role-specific dashboard (SMS Inbox is
+  // shared and shouldn't force a redirect).
   useEffect(() => {
-    if (isLoaded && isSignedIn && visibleCards.length === 1) {
-      navigate(visibleCards[0].path, { replace: true });
+    const roleCards = visibleCards.filter((c) => !c.shared);
+    if (isLoaded && isSignedIn && roleCards.length === 1) {
+      navigate(roleCards[0].path, { replace: true });
     }
   }, [isLoaded, isSignedIn, visibleCards, navigate]);
+
+  // Poll unread SMS count every 30s so the Inbox tile shows a live badge.
+  useEffect(() => {
+    if (!isSignedIn) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const { count } = await unreadCount(auth.getToken);
+        if (!cancelled) setUnread(count);
+      } catch { /* keep silent — badge just stays hidden */ }
+    };
+    load();
+    const iv = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [isSignedIn, auth.getToken]);
 
   if (!isLoaded) {
     return (
@@ -161,12 +188,12 @@ function AuthenticatedSelector() {
         </div>
       )}
       <p className="text-[var(--color-text-secondary)] text-lg mb-8">Select your dashboard view</p>
-      <RoleCards cards={visibleCards} navigate={navigate} />
+      <RoleCards cards={visibleCards} navigate={navigate} unread={unread} />
     </div>
   );
 }
 
-function RoleCards({ cards, navigate }) {
+function RoleCards({ cards, navigate, unread }) {
   // Group cards by type
   const groups = [];
   const ceoCards = cards.filter((c) => c.path === '/ceo');
@@ -174,12 +201,14 @@ function RoleCards({ cards, navigate }) {
   const advCards = cards.filter((c) => c.path.startsWith('/advisor'));
   const repCards = cards.filter((c) => c.path.startsWith('/rep'));
   const adminCards = cards.filter((c) => c.path === '/admin');
+  const sharedCards = cards.filter((c) => c.shared);
 
   if (ceoCards.length) groups.push({ label: null, roles: ceoCards });
   if (mgrCards.length) groups.push({ label: 'Manager', roles: mgrCards });
   if (advCards.length) groups.push({ label: 'Advisor', roles: advCards });
   if (repCards.length) groups.push({ label: 'Sales Rep', roles: repCards });
   if (adminCards.length) groups.push({ label: null, roles: adminCards });
+  if (sharedCards.length) groups.push({ label: 'Shared', roles: sharedCards });
 
   return (
     <div className="w-full max-w-4xl space-y-8">
@@ -193,8 +222,13 @@ function RoleCards({ cards, navigate }) {
               <button
                 key={role.path}
                 onClick={() => navigate(role.path)}
-                className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-8 text-center hover:border-[var(--color-accent-blue)] hover:bg-[var(--color-accent-blue)]/5 transition-all duration-200 cursor-pointer group"
+                className="relative bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-8 text-center hover:border-[var(--color-accent-blue)] hover:bg-[var(--color-accent-blue)]/5 transition-all duration-200 cursor-pointer group"
               >
+                {role.path === '/inbox' && unread > 0 && (
+                  <span className="absolute top-3 right-3 min-w-[22px] h-5 px-1.5 rounded-full bg-[var(--color-accent-red)] text-white text-[11px] font-bold flex items-center justify-center">
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
                 <div className="text-[var(--color-accent-blue)] mb-4 flex justify-center group-hover:scale-110 transition-transform">
                   {role.icon}
                 </div>

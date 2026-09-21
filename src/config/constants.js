@@ -77,11 +77,15 @@ const SINGLE_ROLE_ACCESS = {
   [ROLES.REP_MIA]: ['/rep/miami'],
 };
 
+// Routes any signed-in user can reach regardless of role. Currently just
+// the SMS Inbox — a shared queue anyone with downtime can help work.
+const SHARED_PATHS = ['/inbox'];
+
 // Get all allowed paths for a user (supports multiple roles as array or single string)
 export function getAllowedPaths(roles) {
   if (!roles) return [];
   const roleList = Array.isArray(roles) ? roles : [roles];
-  const paths = new Set();
+  const paths = new Set(SHARED_PATHS);
   roleList.forEach((role) => {
     (SINGLE_ROLE_ACCESS[role] || []).forEach((p) => paths.add(p));
   });
@@ -89,6 +93,7 @@ export function getAllowedPaths(roles) {
 }
 
 export function canAccessRoute(roles, path) {
+  if (SHARED_PATHS.includes(path)) return !!roles;
   return getAllowedPaths(roles).includes(path);
 }
 
