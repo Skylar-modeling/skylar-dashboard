@@ -1,5 +1,6 @@
 import { extractYearMonth } from './dateHelpers';
 import { LOCATIONS } from '../config/constants';
+import { getEnrichedStudents } from './studentCalculations';
 
 function filterByLocation(rows, location, locationField = 'location') {
   if (!location || location === LOCATIONS.ALL) return rows;
@@ -21,16 +22,17 @@ function filterByMonth(rows, month, monthField) {
 
 export function getRevenueSales(data, month, location) {
   if (!data?.STUDENTS_MASTER) return 0;
-  let rows = data.STUDENTS_MASTER;
+  // Enriched: recognizedRevenue is recomputed from PAYMENTS_LOG so Adjustment
+  // rows adjust the effective contract instead of being counted as refunds.
+  let rows = getEnrichedStudents(data);
   rows = filterByLocation(rows, location);
   rows = rows.filter((r) => extractYearMonth(r.depositDate) === month);
-  // Use AK (Recognized Revenue) — cancellation-aware (falls back to Total Collected when Cancelled)
   return rows.reduce((sum, r) => sum + (r.recognizedRevenue || 0), 0);
 }
 
 export function getSalesCount(data, month, location) {
   if (!data?.STUDENTS_MASTER) return 0;
-  let rows = data.STUDENTS_MASTER;
+  let rows = getEnrichedStudents(data);
   rows = filterByLocation(rows, location);
   rows = rows.filter((r) => extractYearMonth(r.depositDate) === month);
   return rows.length;
@@ -62,7 +64,8 @@ export function getAverageDealSize(data, month, location) {
 export function getActualizedRevenue(data, month, location) {
   if (!data?.STUDENTS_MASTER || !month) return 0;
 
-  const students = filterByLocation(data.STUDENTS_MASTER, location);
+  // Enriched: contractPrice reflects any Adjustment rows; totalCollected excludes them.
+  const students = filterByLocation(getEnrichedStudents(data), location);
   let total = 0;
 
   students.forEach((s) => {
@@ -166,14 +169,13 @@ export function getCPA(data, month, location) {
 
 export function getRevenueByProgram(data, month, location) {
   if (!data?.STUDENTS_MASTER) return [];
-  let rows = data.STUDENTS_MASTER;
+  let rows = getEnrichedStudents(data);
   rows = filterByLocation(rows, location);
   rows = rows.filter((r) => extractYearMonth(r.depositDate) === month);
 
   const programMap = {};
   rows.forEach((r) => {
     const prog = r.program || 'Unknown';
-    // Use AK (Recognized Revenue) instead of M — drops cancelled-student inflation
     programMap[prog] = (programMap[prog] || 0) + (r.recognizedRevenue || 0);
   });
 
@@ -197,10 +199,10 @@ export function getCollectionRate(data, month, location) {
 }
 
 export function getOutstandingReceivables(data, location) {
-  // Sum AL (AdjustedBalanceOwed) — already cancellation-aware (0 when Cancelled, M−W otherwise).
-  // More accurate than (total revenue − total collected) because it ignores cancelled students.
+  // Enriched adjustedBalanceOwed = max(0, effectiveContract − amountPaid), with
+  // Cancelled forced to 0. Reflects any Adjustment rows applied to contract.
   if (!data?.STUDENTS_MASTER) return 0;
-  const students = filterByLocation(data.STUDENTS_MASTER, location);
+  const students = filterByLocation(getEnrichedStudents(data), location);
   return students.reduce((sum, r) => sum + (r.adjustedBalanceOwed || 0), 0);
 }
 
@@ -264,7 +266,7 @@ export function getRepAppointmentsTaken(data, repName, month, location) {
 export function getTopSalesReps(data, month, location, limit = 5) {
   if (!data?.STUDENTS_MASTER) return [];
 
-  let students = data.STUDENTS_MASTER.filter((r) => extractYearMonth(r.depositDate) === month);
+  let students = getEnrichedStudents(data).filter((r) => extractYearMonth(r.depositDate) === month);
   students = filterByLocation(students, location);
 
   const repMap = {};

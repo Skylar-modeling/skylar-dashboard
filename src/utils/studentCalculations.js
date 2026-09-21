@@ -53,100 +53,182 @@ export function classifyPayment(p) {
   return 'other';
 }
 
+/**
+ * Compute the corrected financial fields for a single student from their
+ * PAYMENTS_LOG rows. Handles PAYMENTS_LOG Category="Adjustment" rows
+ * correctly: they represent CONTRACT-PRICE CHANGES, not cash movements —
+ * they adjust Contract Price up/down and are excluded from Amount Paid and
+ * Refund totals.
+ *
+ * The sheet's W/AD/AK/AL formulas treat Adjustment rows as if cash actually
+ * moved, so this override is the app's source of truth for display and
+ * aggregate revenue calculations.
+ *
+ * Rule matrix:
+ *   Adjustment (Cat="Adjustment", signed amount):
+ *     - Applied to Contract Price → effectiveContractPrice
+ *     - EXCLUDED from Amount Paid and Refunded
+ *   Real refund (Cat="Refund"/"Chargeback", or charge.refunded, or Refunded=Yes,
+ *   or Paid+negative that isn't Adjustment):
+ *     - INCLUDED in Amount Paid (nets down)
+ *     - Counted as Refunded amount
+ *     - Flips Recognized Revenue to cash-basis
+ *   Cancelled enrollment:
+ *     - Flips Recognized Revenue to cash-basis
+ *     - Outstanding forced to 0
+ */
+export function computeStudentFinancials(student, payments) {
+  const paidRows = payments.filter((p) => (p.paymentStatus || '').toLowerCase() === 'paid');
+  const isAdjustment = (p) =>
+    (p.paymentCategory || '').toLowerCase() === 'adjustment' ||
+    (p.cashTransactionType || '').toLowerCase() === 'adjustment';
+
+  // Signed sum. Out is negative (contract goes down), In is positive (contract goes up).
+  const totalAdjustments = paidRows
+    .filter(isAdjustment)
+    .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
+
+  const originalContractPrice = student.contractPrice || 0;
+  const effectiveContractPrice = originalContractPrice + totalAdjustments;
+
+  // Amount Paid = real cash movement. Adjustments excluded. Real refund rows
+  // stored as Paid+negative naturally net into this sum.
+  const amountPaid = paidRows
+    .filter((p) => !isAdjustment(p))
+    .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
+
+  // Refunded magnitude — every row that classifyPayment labels a refund,
+  // regardless of storage convention (Paid+negative, charge.refunded, Refunded=Yes).
+  // Adjustments are already excluded by classifyPayment returning 'adjustment' first.
+  const refundedAmount = Math.abs(
+    payments
+      .filter((p) => classifyPayment(p) === 'refund')
+      .reduce((sum, p) => sum + (p.paymentAmount || 0), 0)
+  );
+
+  const isCancelled = (student.enrollmentStatus || '').trim().toLowerCase() === 'cancelled';
+  const hasRealRefund = refundedAmount > 0;
+
+  // Recognized revenue: cancellation OR real refund → cash-basis; else full effective contract.
+  const recognizedRevenue = (isCancelled || hasRealRefund) ? amountPaid : effectiveContractPrice;
+
+  const outstanding = isCancelled ? 0 : Math.max(0, effectiveContractPrice - amountPaid);
+
+  return {
+    originalContractPrice,
+    adjustmentAmount: totalAdjustments,
+    effectiveContractPrice,
+    hasRealRefund,
+    // Overrides that shadow the sheet's W/AD/AK/AL/M so downstream code
+    // that iterates enriched students gets the corrected values automatically.
+    contractPrice: effectiveContractPrice,
+    totalCollected: amountPaid,
+    refundAmount: refundedAmount,
+    recognizedRevenue,
+    adjustedBalanceOwed: outstanding,
+  };
+}
+
+// Memoized batch enrichment. WeakMap keys on the `data` object identity, so
+// as long as useSheetData returns the same object between renders, we return
+// the cached enriched list.
+const _enrichmentCache = new WeakMap();
+
+/**
+ * Return STUDENTS_MASTER with corrected recognizedRevenue / totalCollected /
+ * refundAmount / adjustedBalanceOwed / contractPrice fields computed from
+ * PAYMENTS_LOG. Every downstream calculation should iterate THIS instead of
+ * the raw data.STUDENTS_MASTER — the sheet formulas for those columns don't
+ * handle Category="Adjustment" rows correctly.
+ */
+export function getEnrichedStudents(data) {
+  if (!data?.STUDENTS_MASTER) return [];
+  const cached = _enrichmentCache.get(data);
+  if (cached) return cached;
+
+  const paymentsByEmail = new Map();
+  const paymentsByStudentId = new Map();
+  (data.PAYMENTS_LOG || []).forEach((p) => {
+    const e = (p.studentEmail || '').toLowerCase();
+    if (e) {
+      if (!paymentsByEmail.has(e)) paymentsByEmail.set(e, []);
+      paymentsByEmail.get(e).push(p);
+    }
+    const sid = p.studentId || '';
+    if (sid) {
+      if (!paymentsByStudentId.has(sid)) paymentsByStudentId.set(sid, []);
+      paymentsByStudentId.get(sid).push(p);
+    }
+  });
+
+  const enriched = data.STUDENTS_MASTER.map((s) => {
+    const key = (s.email || '').toLowerCase();
+    let payments = paymentsByEmail.get(key) || [];
+    if (payments.length === 0 && s.studentId) {
+      payments = paymentsByStudentId.get(s.studentId) || [];
+    }
+    return { ...s, ...computeStudentFinancials(s, payments) };
+  });
+
+  _enrichmentCache.set(data, enriched);
+  return enriched;
+}
+
 export function getStudentRecord(data, student) {
+  // Idempotency: if `student` was already enriched, use its ORIGINAL contract
+  // price (before adjustments were folded in) as the base — otherwise the raw M.
+  const baseStudent = student.originalContractPrice != null
+    ? { ...student, contractPrice: student.originalContractPrice }
+    : student;
+
   if (!data?.PAYMENTS_LOG) {
-    const paid = student.totalCollected || 0;
+    const financials = computeStudentFinancials(baseStudent, []);
     return {
-      ...student,
-      amountPaid: paid,
-      // Prefer AL (AdjustedBalanceOwed) — 0 when Cancelled.
-      amountOutstanding: student.adjustedBalanceOwed != null
-        ? student.adjustedBalanceOwed
-        : Math.max(0, (student.contractPrice || 0) - paid),
+      ...baseStudent,
+      ...financials,
+      amountPaid: financials.totalCollected,
+      amountOutstanding: financials.adjustedBalanceOwed,
       lateFees: 0,
       failedPayments: 0,
       refundedCount: 0,
       successfulCount: 0,
+      adjustmentCount: 0,
       payments: [],
     };
   }
 
-  // Match payments by email (most reliable) or student ID
+  // Match payments by email (most reliable) or student ID.
   const payments = data.PAYMENTS_LOG.filter(
     (p) =>
-      (student.email && p.studentEmail && p.studentEmail.toLowerCase() === student.email.toLowerCase()) ||
-      (student.studentId && p.studentId && p.studentId === student.studentId)
+      (baseStudent.email && p.studentEmail && p.studentEmail.toLowerCase() === baseStudent.email.toLowerCase()) ||
+      (baseStudent.studentId && p.studentId && p.studentId === baseStudent.studentId)
   );
 
-  // Sort payments by date descending (newest first)
+  // Sort payments by date descending (newest first).
   const sortedPayments = [...payments].sort((a, b) => {
     const dateA = a.paymentDate ? new Date(a.paymentDate) : new Date(0);
     const dateB = b.paymentDate ? new Date(b.paymentDate) : new Date(0);
     return dateB - dateA;
   });
 
-  // ────────────────────────────────────────────────────────────────
-  // Adjustments (from the daily-ops form): Category="Adjustment", signed amount
-  // (Out is negative → reduces contract; In is positive → increases contract).
-  // These rows come in as Status="Paid", so col W already nets them — we back
-  // them out of Amount Paid and instead apply them to Contract Price.
-  // ────────────────────────────────────────────────────────────────
-  const adjustmentAmount = payments
-    .filter((p) => classifyPayment(p) === 'adjustment')
-    .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
+  const financials = computeStudentFinancials(baseStudent, payments);
 
-  const originalContractPrice = student.contractPrice || 0;
-  const adjustedContractPrice = originalContractPrice + adjustmentAmount;
-
-  // ────────────────────────────────────────────────────────────────
-  // Amount Paid = STUDENTS_MASTER col W (Total Collected), minus any adjustment
-  // rows that col W's SUMIFS(Status="Paid") swept in. Adjustments are contract
-  // changes, not payments — they belong on the contract side of the ledger.
-  // If W is missing (older row), we fall back to SUM of Status="Paid" AS-IS,
-  // excluding adjustment rows.
-  // ────────────────────────────────────────────────────────────────
-  let amountPaid;
-  if (student.totalCollected != null && !isNaN(student.totalCollected) && student.totalCollected !== 0) {
-    amountPaid = student.totalCollected - adjustmentAmount;
-  } else {
-    amountPaid = payments
-      .filter((p) => (p.paymentStatus || '').toLowerCase() === 'paid' && classifyPayment(p) !== 'adjustment')
-      .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
-  }
-
-  // Outstanding:
-  //   Cancelled students → 0 (they don't owe further regardless of what was paid)
-  //   Otherwise → adjustedContract − amountPaid (adjustment-aware).
-  //   When there are no adjustments, this reduces to the sheet's AL formula
-  //   (M − W), so numbers stay identical for the >99% of students without one.
-  const isCancelled = (student.enrollmentStatus || '').trim().toLowerCase() === 'cancelled';
-  const amountOutstanding = isCancelled
-    ? 0
-    : Math.max(0, adjustedContractPrice - amountPaid);
-
-  // Counts (per user spec) are semantic, independent of Amount Paid calc:
-  //   success    = positive-amount Paid rows (real charges that landed)
-  //   refund     = Category=Refund | Status=charge.refunded | Refunded=Yes | negative Paid rows
-  //   adjustment = Category=Adjustment (from daily-ops form)
-  //   failed     = charge_failed | charge.failed
+  // Counts are semantic, independent of the amount math above.
   const successfulCount = payments.filter((p) => classifyPayment(p) === 'success').length;
   const refundedCount = payments.filter((p) => classifyPayment(p) === 'refund').length;
   const adjustmentCount = payments.filter((p) => classifyPayment(p) === 'adjustment').length;
   const failedCount = payments.filter(isFailedPayment).length;
 
   return {
-    ...student,
-    // Override with adjusted contract so every display uses the current agreed price.
-    contractPrice: adjustedContractPrice,
-    originalContractPrice,
-    adjustmentAmount,
-    adjustmentCount,
-    amountPaid,
-    amountOutstanding,
+    ...baseStudent,
+    ...financials,
+    amountPaid: financials.totalCollected,
+    amountOutstanding: financials.adjustedBalanceOwed,
     lateFees: failedCount,
     failedPayments: failedCount,
     successfulCount,
     refundedCount,
+    adjustmentCount,
     payments: sortedPayments,
   };
 }
@@ -165,7 +247,8 @@ export function getStudentRecord(data, student) {
 export function getOpenAccounts(data, location) {
   if (!data?.STUDENTS_MASTER) return [];
 
-  let students = data.STUDENTS_MASTER.filter((s) => (s.adjustedBalanceOwed || 0) > 0);
+  // Enriched so adjustedBalanceOwed reflects Adjustment rows applied to contract.
+  let students = getEnrichedStudents(data).filter((s) => (s.adjustedBalanceOwed || 0) > 0);
   if (location && location !== 'ALL') {
     students = students.filter((s) => s.location === location);
   }
@@ -216,7 +299,7 @@ export function getOpenAccounts(data, location) {
 export function getCohorts(data, location) {
   if (!data?.STUDENTS_MASTER) return [];
 
-  let students = data.STUDENTS_MASTER;
+  let students = getEnrichedStudents(data);
   if (location && location !== 'ALL') {
     students = students.filter((s) => s.location === location);
   }
@@ -486,7 +569,7 @@ export function getARAging(data, location) {
   }
 
   const todayMs = Date.now();
-  const openStudents = data.STUDENTS_MASTER.filter((s) => {
+  const openStudents = getEnrichedStudents(data).filter((s) => {
     if ((s.adjustedBalanceOwed || 0) <= 0) return false;
     if (location && location !== 'ALL' && s.location !== location) return false;
     return true;
@@ -810,7 +893,7 @@ export function getMonthlySalesOverview(data) {
 
   const byMonth = new Map();
 
-  data.STUDENTS_MASTER.forEach((s) => {
+  getEnrichedStudents(data).forEach((s) => {
     const month = (s.depositDate || '').slice(0, 7);
     if (!month || !/^\d{4}-\d{2}$/.test(month)) return; // skip blank / malformed
 

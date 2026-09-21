@@ -1,5 +1,6 @@
 import { extractYearMonth } from './dateHelpers';
 import { LOCATIONS } from '../config/constants';
+import { getEnrichedStudents, classifyPayment } from './studentCalculations';
 
 /**
  * Match a Clerk user email to a sales rep record.
@@ -62,7 +63,7 @@ export function getRepSalesAndRank(data, repName, month, location) {
     return { salesCount: 0, rank: 0, totalReps: 0, cancellationRate: null, closeRate: null, avgDealSize: null, apptsTaken: 0 };
   }
 
-  const students = data.STUDENTS_MASTER.filter((s) => {
+  const students = getEnrichedStudents(data).filter((s) => {
     if (!s.depositDate) return false;
     if (extractYearMonth(s.depositDate) !== month) return false;
     if (location && location !== LOCATIONS.ALL && s.location !== location) return false;
@@ -121,7 +122,7 @@ export function getRepSalesAndRank(data, repName, month, location) {
 export function getRepClients(data, repName, month) {
   if (!data?.STUDENTS_MASTER || !repName) return [];
 
-  const students = data.STUDENTS_MASTER.filter((s) => {
+  const students = getEnrichedStudents(data).filter((s) => {
     if (extractYearMonth(s.depositDate) !== month) return false;
     return s.salesRep1 === repName || s.salesRep2 === repName;
   });
@@ -132,8 +133,13 @@ export function getRepClients(data, repName, month) {
       (p) => p.studentEmail && s.email && p.studentEmail.toLowerCase() === s.email.toLowerCase()
     );
 
+    // Adjustments are contract changes, not cash — exclude from Amount Paid.
     const totalPaid = payments
-      .filter((p) => p.paymentStatus === 'Paid' && String(p.refunded).toLowerCase() !== 'yes')
+      .filter((p) =>
+        p.paymentStatus === 'Paid'
+        && String(p.refunded).toLowerCase() !== 'yes'
+        && classifyPayment(p) !== 'adjustment'
+      )
       .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
 
     const failedCount = payments.filter((p) => {
@@ -178,7 +184,7 @@ export function getRepClients(data, repName, month) {
 export function getRepAllClients(data, repName) {
   if (!data?.STUDENTS_MASTER || !repName) return [];
 
-  const students = data.STUDENTS_MASTER.filter(
+  const students = getEnrichedStudents(data).filter(
     (s) => s.salesRep1 === repName || s.salesRep2 === repName
   );
 
@@ -187,8 +193,13 @@ export function getRepAllClients(data, repName) {
       (p) => p.studentEmail && s.email && p.studentEmail.toLowerCase() === s.email.toLowerCase()
     );
 
+    // Adjustments are contract changes, not cash — exclude from Amount Paid.
     const totalPaid = payments
-      .filter((p) => p.paymentStatus === 'Paid' && String(p.refunded).toLowerCase() !== 'yes')
+      .filter((p) =>
+        p.paymentStatus === 'Paid'
+        && String(p.refunded).toLowerCase() !== 'yes'
+        && classifyPayment(p) !== 'adjustment'
+      )
       .reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
 
     const failedCount = payments.filter((p) => {
