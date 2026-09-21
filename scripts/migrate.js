@@ -43,7 +43,9 @@ for (const file of files) {
     .map((s) => s.trim())
     .filter((s) => s && !s.startsWith('--'));
   for (const stmt of statements) {
-    await sql.query(stmt);
+    // Neon HTTP driver: sql is a callable — pass a plain string to run
+    // a raw statement (there is no .query() method).
+    await sql(stmt);
   }
 }
 

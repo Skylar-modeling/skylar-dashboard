@@ -66,7 +66,9 @@ export default async function handler(req, res) {
 
   try {
     for (const stmt of SCHEMA_STATEMENTS) {
-      await sql.query(stmt);
+      // Neon HTTP driver: sql is a callable — pass a plain string to run
+      // a raw statement (there is no .query() method).
+      await sql(stmt);
     }
     // Seed templates only if the table is empty (idempotent).
     const existing = await sql`SELECT COUNT(*)::int AS count FROM templates`;
