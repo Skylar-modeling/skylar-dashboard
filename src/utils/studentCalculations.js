@@ -161,7 +161,13 @@ export function getEnrichedStudents(data) {
     }
   });
 
-  const enriched = data.STUDENTS_MASTER.map((s) => {
+  // Skip pseudo-student rows: historical monthly-total backfill in
+  // STUDENTS_MASTER (e.g. "January 25", "February 25") and any spacer rows.
+  // These have blank Program and would otherwise inflate Outstanding
+  // Receivables / Open Accounts / AR Aging because their W is $0.
+  const isRealStudent = (s) => (s.program || '').trim().length > 0;
+
+  const enriched = data.STUDENTS_MASTER.filter(isRealStudent).map((s) => {
     const key = (s.email || '').toLowerCase();
     let payments = paymentsByEmail.get(key) || [];
     if (payments.length === 0 && s.studentId) {
