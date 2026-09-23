@@ -976,8 +976,22 @@ export function getEnrollmentStatusDrift(sheetData, airtableRows, location) {
 
   const norm = (v) => (v || '').trim().toLowerCase() || 'active';
 
-  const drift = [];
+  // Dedupe Airtable rows by email — a re-enrollment creates a second row for
+  // the same student. Keep only the most recently modified record so a legit
+  // re-enrollment (Active row is newer than the old Cancelled row) doesn't
+  // false-positive as drift.
+  const latestByEmail = new Map();
   for (const a of airtableRows) {
+    const e = (a.email || '').trim().toLowerCase();
+    if (!e) continue;
+    const existing = latestByEmail.get(e);
+    if (!existing || (a.lastModified || '') > (existing.lastModified || '')) {
+      latestByEmail.set(e, a);
+    }
+  }
+
+  const drift = [];
+  for (const a of latestByEmail.values()) {
     if (!a.email) continue;
     const student = sheetByEmail.get(a.email);
     if (!student) continue; // student in Airtable but not the sheet — separate issue, skip here
