@@ -57,6 +57,7 @@ const SEED_TEMPLATES = [
   { label: 'Reservar cita (ES)',     body: "Me encantaría agendar una cita contigo. Puedes reservarla fácilmente aquí: skylarmodeling.com/contact", language: 'es', sort_order: 2 },
   { label: 'Follow up (EN)',         body: "Just checking in! Are you still interested in learning more about Skylar Modeling?", language: 'en', sort_order: 3 },
   { label: 'Understood (EN)',        body: "Understood — thanks for letting us know! If anything changes down the road, we're just a text away.", language: 'en', sort_order: 4 },
+  { label: 'Wrong email / spam (EN)', body: "You might have signed up with the wrong email or check your spam folder — I'd love to schedule an appointment with you. You can easily set it up here: skylarmodeling.com/contact", language: 'en', sort_order: 5 },
 ];
 
 export default async function handler(req, res) {
@@ -70,21 +71,27 @@ export default async function handler(req, res) {
       // a raw statement (there is no .query() method).
       await sql(stmt);
     }
-    // Seed templates only if the table is empty (idempotent).
-    const existing = await sql`SELECT COUNT(*)::int AS count FROM templates`;
-    if (existing[0].count === 0) {
-      for (const t of SEED_TEMPLATES) {
-        await sql`
-          INSERT INTO templates (label, body, language, sort_order)
-          VALUES (${t.label}, ${t.body}, ${t.language}, ${t.sort_order})
-        `;
-      }
+    // Seed templates idempotently — insert each by label only if it doesn't
+    // already exist. Lets us add new quick-reply buttons later by adding to
+    // SEED_TEMPLATES and re-hitting this endpoint; existing rows are left
+    // alone (edits to their body should be done in the DB directly).
+    let inserted = 0;
+    for (const t of SEED_TEMPLATES) {
+      const result = await sql`
+        INSERT INTO templates (label, body, language, sort_order)
+        SELECT ${t.label}, ${t.body}, ${t.language}, ${t.sort_order}
+        WHERE NOT EXISTS (SELECT 1 FROM templates WHERE label = ${t.label})
+        RETURNING id
+      `;
+      if (result.length > 0) inserted += 1;
     }
     return res.status(200).json({
       ok: true,
       tables: ['conversations', 'messages', 'templates'],
-      templatesSeeded: existing[0].count === 0 ? SEED_TEMPLATES.length : 0,
-      message: 'Schema ready. You can now use the inbox.',
+      templatesSeeded: inserted,
+      message: inserted > 0
+        ? `Schema ready. Added ${inserted} new template${inserted === 1 ? '' : 's'}.`
+        : 'Schema ready. All templates already present.',
     });
   } catch (err) {
     console.error('Init error:', err);

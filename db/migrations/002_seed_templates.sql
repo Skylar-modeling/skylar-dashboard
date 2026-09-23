@@ -1,5 +1,6 @@
--- Four seed quick-reply templates. Bilingual. Editable later via a CRUD
--- or by re-running this after truncating the table.
+-- Seed quick-reply templates. Idempotent per label, so this file can be
+-- re-run after adding new rows. Editing an existing body should be done in
+-- the DB directly — this WHERE clause never overwrites.
 INSERT INTO templates (label, body, language, sort_order)
 SELECT * FROM (VALUES
   ('Book appointment (EN)',
@@ -13,6 +14,9 @@ SELECT * FROM (VALUES
    'en', 3),
   ('Understood (EN)',
    'Understood — thanks for letting us know! If anything changes down the road, we''re just a text away.',
-   'en', 4)
+   'en', 4),
+  ('Wrong email / spam (EN)',
+   'You might have signed up with the wrong email or check your spam folder — I''d love to schedule an appointment with you. You can easily set it up here: skylarmodeling.com/contact',
+   'en', 5)
 ) AS seed(label, body, language, sort_order)
-WHERE NOT EXISTS (SELECT 1 FROM templates);
+WHERE NOT EXISTS (SELECT 1 FROM templates t WHERE t.label = seed.label);
