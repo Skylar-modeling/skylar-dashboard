@@ -16,12 +16,14 @@ import NeedsAttention from '../components/NeedsAttention';
 import DunningWorklist from '../components/DunningWorklist';
 import ARAging from '../components/ARAging';
 import StaleStatusList from '../components/StaleStatusList';
+import EnrollmentDrift from '../components/EnrollmentDrift';
 import ActivityFeed from '../components/ActivityFeed';
 import {
   getOpenAccounts, getCohorts, getRepeatedFailures, getCancelledButBilled, getOpenDisputes,
-  getDunningList, getARAging, getStaleStatusItems, getRecentActivity,
+  getDunningList, getARAging, getStaleStatusItems, getRecentActivity, getEnrollmentStatusDrift,
 } from '../utils/studentCalculations';
 import { useSheetData } from '../hooks/useSheetData';
+import { useAirtableEnrollment } from '../hooks/useAirtableEnrollment';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
 import {
   getCurrentMonth, getPreviousMonth, getSameMonthLastYear,
@@ -119,6 +121,11 @@ export default function ManagerDashboard() {
   const dunningList = useMemo(() => data ? getDunningList(data, location) : [], [data, location]);
   const arAging = useMemo(() => getARAging(data, location), [data, location]);
   const staleStatus = useMemo(() => data ? getStaleStatusItems(data, location) : [], [data, location]);
+  const { data: airtableEnrollments, loading: airtableLoading, error: airtableError } = useAirtableEnrollment();
+  const enrollmentDrift = useMemo(
+    () => data ? getEnrollmentStatusDrift(data, airtableEnrollments || [], location) : [],
+    [data, airtableEnrollments, location]
+  );
   const recentActivity = useMemo(() => data ? getRecentActivity(data, location, 30) : [], [data, location]);
 
   const locationCash = useMemo(() => {
@@ -333,7 +340,16 @@ export default function ManagerDashboard() {
         onClearAging={() => setAgingBucket(null)}
       />
 
-      {/* Section 11: Stale Status — contradictory enrollment / cancellation states (audit safeguard) */}
+      {/* Section 11: Enrollment Status Drift — Airtable ⇄ Sheet mismatches */}
+      <SectionTitle>Enrollment Status Drift</SectionTitle>
+      <EnrollmentDrift
+        items={enrollmentDrift}
+        data={data}
+        loading={airtableLoading}
+        error={airtableError}
+      />
+
+      {/* Section 12: Stale Status — contradictory enrollment / cancellation states (audit safeguard) */}
       <SectionTitle>Stale Status</SectionTitle>
       <StaleStatusList items={staleStatus} data={data} />
 

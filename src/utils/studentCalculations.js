@@ -948,6 +948,69 @@ export function getMonthlySalesOverview(data) {
   return Array.from(byMonth.values()).sort((a, b) => b.month.localeCompare(a.month));
 }
 
+/**
+ * Enrollment-status drift: cases where the Airtable Enrolled Students table
+ * (source of truth for enrollment lifecycle) disagrees with STUDENTS_MASTER
+ * on the Google Sheet. Common causes:
+ *   - A cancellation submitted via Daily OPS never synced to the sheet.
+ *   - A re-enrollment updated Airtable but the sync scenario missed the row.
+ *   - A manual sheet edit was reverted by a later automation run.
+ *
+ * A student is flagged when:
+ *   airtable.enrollmentStatus.toLowerCase() !== sheet.enrollmentStatus.toLowerCase()
+ * where blank on the sheet is treated as "Active" (existing convention).
+ *
+ * Returns an array of drift items, most-recent Airtable-modified first.
+ * Each item has: { student, sheetStatus, airtableStatus, cancellationDate,
+ * lastModified, severity }.
+ */
+export function getEnrollmentStatusDrift(sheetData, airtableRows, location) {
+  if (!sheetData?.STUDENTS_MASTER || !Array.isArray(airtableRows)) return [];
+
+  // Index sheet students by email for O(1) lookup.
+  const sheetByEmail = new Map();
+  sheetData.STUDENTS_MASTER.forEach((s) => {
+    const e = (s.email || '').trim().toLowerCase();
+    if (e) sheetByEmail.set(e, s);
+  });
+
+  const norm = (v) => (v || '').trim().toLowerCase() || 'active';
+
+  const drift = [];
+  for (const a of airtableRows) {
+    if (!a.email) continue;
+    const student = sheetByEmail.get(a.email);
+    if (!student) continue; // student in Airtable but not the sheet — separate issue, skip here
+    if (location && location !== 'ALL' && student.location !== location) continue;
+
+    const sheetStatus = norm(student.enrollmentStatus);
+    const airtableStatus = norm(a.enrollmentStatus);
+    if (sheetStatus === airtableStatus) continue;
+
+    // Severity: Cancelled-in-Airtable-but-Active-in-sheet is the risky one
+    // (Stripe likely still billing). The inverse is bookkeeping only.
+    const severity = airtableStatus === 'cancelled' && sheetStatus !== 'cancelled'
+      ? 'red'
+      : 'amber';
+
+    drift.push({
+      student,
+      airtableName: a.fullName || student.fullName,
+      sheetStatus: student.enrollmentStatus || 'Active',
+      airtableStatus: a.enrollmentStatus || 'Active',
+      cancellationDate: a.cancellationDate || '',
+      lastModified: a.lastModified || '',
+      severity,
+    });
+  }
+
+  // Red first, then most-recently-changed on the Airtable side.
+  return drift.sort((x, y) => {
+    if (x.severity !== y.severity) return x.severity === 'red' ? -1 : 1;
+    return (y.lastModified || '').localeCompare(x.lastModified || '');
+  });
+}
+
 export function searchStudents(data, query, location) {
   if (!data?.STUDENTS_MASTER || !query || query.trim().length < 2 || query.trim().length > 50) return [];
 
