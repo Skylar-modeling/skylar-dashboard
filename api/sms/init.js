@@ -58,6 +58,8 @@ const SEED_TEMPLATES = [
   { label: 'Follow up (EN)',         body: "Just checking in! Are you still interested in learning more about Skylar Modeling?", language: 'en', sort_order: 3 },
   { label: 'Understood (EN)',        body: "Understood — thanks for letting us know! If anything changes down the road, we're just a text away.", language: 'en', sort_order: 4 },
   { label: 'Wrong email / spam (EN)', body: "You might have signed up with the wrong email or check your spam folder — I'd love to schedule an appointment with you. You can easily set it up here: skylarmodeling.com/contact", language: 'en', sort_order: 5 },
+  { label: 'Correo/spam (ES · virtual)', body: "Puede que te hayas registrado con el correo equivocado o revisa tu carpeta de spam — me encantaría agendar tu audición virtual. Puedes reservarla aquí: https://calendly.com/d/ctgt-9s5-7ws/virtual-audicion", language: 'es', sort_order: 6 },
+  { label: 'Correo/spam (ES · presencial)', body: "Puede que te hayas registrado con el correo equivocado o revisa tu carpeta de spam — me encantaría agendar tu audición presencial. Puedes reservarla aquí: https://calendly.com/skylarmodeling/audicion", language: 'es', sort_order: 7 },
 ];
 
 export default async function handler(req, res) {

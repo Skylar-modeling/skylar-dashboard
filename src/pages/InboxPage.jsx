@@ -13,11 +13,8 @@ import {
 } from '../api/inbox';
 
 const FILTERS = [
-  { key: 'unread', label: 'Unread' },
-  { key: 'yes',    label: 'Yes' },
-  { key: 'no',     label: 'No' },
-  { key: 'question', label: 'Questions' },
-  { key: 'all',    label: 'All' },
+  { key: 'all',      label: 'All' },
+  { key: 'unread',   label: 'Unread' },
   { key: 'archived', label: 'Archived' },
 ];
 
@@ -32,7 +29,7 @@ const CLASSIFICATION_LABEL = {
 
 export default function InboxPage() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
-  const [filter, setFilter] = useState('unread');
+  const [filter, setFilter] = useState('all');
   const [conversations, setConversations] = useState([]);
   const [selectedPhone, setSelectedPhone] = useState(null);
   const [thread, setThread] = useState(null);

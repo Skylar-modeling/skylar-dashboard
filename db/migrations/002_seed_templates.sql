@@ -17,6 +17,12 @@ SELECT * FROM (VALUES
    'en', 4),
   ('Wrong email / spam (EN)',
    'You might have signed up with the wrong email or check your spam folder — I''d love to schedule an appointment with you. You can easily set it up here: skylarmodeling.com/contact',
-   'en', 5)
+   'en', 5),
+  ('Correo/spam (ES · virtual)',
+   'Puede que te hayas registrado con el correo equivocado o revisa tu carpeta de spam — me encantaría agendar tu audición virtual. Puedes reservarla aquí: https://calendly.com/d/ctgt-9s5-7ws/virtual-audicion',
+   'es', 6),
+  ('Correo/spam (ES · presencial)',
+   'Puede que te hayas registrado con el correo equivocado o revisa tu carpeta de spam — me encantaría agendar tu audición presencial. Puedes reservarla aquí: https://calendly.com/skylarmodeling/audicion',
+   'es', 7)
 ) AS seed(label, body, language, sort_order)
 WHERE NOT EXISTS (SELECT 1 FROM templates t WHERE t.label = seed.label);
