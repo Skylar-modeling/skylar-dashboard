@@ -60,6 +60,8 @@ const SEED_TEMPLATES = [
   { label: 'Wrong email / spam (EN)', body: "You might have signed up with the wrong email or check your spam folder — I'd love to schedule an appointment with you. You can easily set it up here: skylarmodeling.com/contact", language: 'en', sort_order: 5 },
   { label: 'Correo/spam (ES · virtual)', body: "Puede que te hayas registrado con el correo equivocado o revisa tu carpeta de spam — me encantaría agendar tu audición virtual. Puedes reservarla aquí: https://calendly.com/d/ctgt-9s5-7ws/virtual-audicion", language: 'es', sort_order: 6 },
   { label: 'Correo/spam (ES · presencial)', body: "Puede que te hayas registrado con el correo equivocado o revisa tu carpeta de spam — me encantaría agendar tu audición presencial. Puedes reservarla aquí: https://calendly.com/skylarmodeling/audicion", language: 'es', sort_order: 7 },
+  { label: 'Cost? (EN)', body: "The consultation is completely free! We only work with 6 models, and if we feel you're a good fit, we may offer you a program that requires an investment. If not, we'll still give you your next steps for free.\n\nI'd love to schedule an appointment with you! You can easily book one here: skylarmodeling.com/contact", language: 'en', sort_order: 8 },
+  { label: '¿Costo? (ES)', body: "¡La consulta es completamente gratuita! Solo trabajamos con 6 modelos, y si sentimos que eres una buena opción, es posible que te ofrezcamos un programa que requiera una inversión. Si no, igual te daremos tus próximos pasos sin costo.\n\n¡Me encantaría agendar una cita contigo! Puedes reservarla fácilmente aquí: skylarmodeling.com/contact", language: 'es', sort_order: 9 },
 ];
 
 export default async function handler(req, res) {
