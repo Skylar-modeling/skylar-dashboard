@@ -61,7 +61,7 @@ const SEED_TEMPLATES = [
   { label: 'Correo/spam (ES · virtual)', body: "Puede que te hayas registrado con el correo equivocado o revisa tu carpeta de spam — me encantaría agendar tu audición virtual. Puedes reservarla aquí: https://calendly.com/d/ctgt-9s5-7ws/virtual-audicion", language: 'es', sort_order: 6 },
   { label: 'Correo/spam (ES · presencial)', body: "Puede que te hayas registrado con el correo equivocado o revisa tu carpeta de spam — me encantaría agendar tu audición presencial. Puedes reservarla aquí: https://calendly.com/skylarmodeling/audicion", language: 'es', sort_order: 7 },
   { label: 'Cost? (EN)', body: "The consultation is completely free! We only work with 6 models, and if we feel you're a good fit, we may offer you a program that requires an investment. If not, we'll still give you your next steps for free.\n\nI'd love to schedule an appointment with you! You can easily book one here: skylarmodeling.com/contact", language: 'en', sort_order: 8 },
-  { label: '¿Costo? (ES)', body: "¡La consulta es completamente gratuita! Solo trabajamos con 6 modelos, y si sentimos que eres una buena opción, es posible que te ofrezcamos un programa que requiera una inversión. Si no, igual te daremos tus próximos pasos sin costo.\n\n¡Me encantaría agendar una cita contigo! Puedes reservarla fácilmente aquí: skylarmodeling.com/contact", language: 'es', sort_order: 9 },
+  { label: '¿Costo? (ES)', body: "¡La consulta es completamente gratuita! Solo trabajamos con 6 modelos, y si sentimos que eres una buena opción, es posible que te ofrezcamos un programa que requiera una inversión. Si no, igual te daremos tus próximos pasos sin costo.\n\n¡Me encantaría agendar una cita contigo! Puedes reservarla fácilmente aquí: https://calendly.com/skylarmodeling/audicion", language: 'es', sort_order: 9 },
 ];
 
 export default async function handler(req, res) {
@@ -79,23 +79,50 @@ export default async function handler(req, res) {
     // already exist. Lets us add new quick-reply buttons later by adding to
     // SEED_TEMPLATES and re-hitting this endpoint; existing rows are left
     // alone (edits to their body should be done in the DB directly).
+    //
+    // Pass ?upsert=1 to also update body/language/sort_order on existing
+    // rows whose content differs from SEED_TEMPLATES. Destructive to any
+    // manual DB edits that don't match the source, which is exactly what we
+    // want when the source-code copy is the authoritative version.
+    const upsert = req.query.upsert === '1' || req.query.upsert === 'true';
     let inserted = 0;
+    let updated = 0;
     for (const t of SEED_TEMPLATES) {
-      const result = await sql`
+      const insertResult = await sql`
         INSERT INTO templates (label, body, language, sort_order)
         SELECT ${t.label}, ${t.body}, ${t.language}, ${t.sort_order}
         WHERE NOT EXISTS (SELECT 1 FROM templates WHERE label = ${t.label})
         RETURNING id
       `;
-      if (result.length > 0) inserted += 1;
+      if (insertResult.length > 0) {
+        inserted += 1;
+        continue;
+      }
+      if (upsert) {
+        const updateResult = await sql`
+          UPDATE templates
+          SET body = ${t.body},
+              language = ${t.language},
+              sort_order = ${t.sort_order}
+          WHERE label = ${t.label}
+            AND (body <> ${t.body} OR language <> ${t.language} OR sort_order <> ${t.sort_order})
+          RETURNING id
+        `;
+        if (updateResult.length > 0) updated += 1;
+      }
     }
+    const parts = [];
+    if (inserted > 0) parts.push(`Added ${inserted} new template${inserted === 1 ? '' : 's'}`);
+    if (updated > 0) parts.push(`updated ${updated} existing`);
+    const message = parts.length > 0
+      ? `Schema ready. ${parts.join(', ')}.`
+      : 'Schema ready. All templates already present and in sync.';
     return res.status(200).json({
       ok: true,
       tables: ['conversations', 'messages', 'templates'],
       templatesSeeded: inserted,
-      message: inserted > 0
-        ? `Schema ready. Added ${inserted} new template${inserted === 1 ? '' : 's'}.`
-        : 'Schema ready. All templates already present.',
+      templatesUpdated: updated,
+      message,
     });
   } catch (err) {
     console.error('Init error:', err);
