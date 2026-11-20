@@ -7,6 +7,34 @@ function filterByLocation(rows, location, locationField = 'location') {
   return rows.filter((r) => r[locationField] === location);
 }
 
+/**
+ * PAYMENTS_LOG rows with a reliable `location` field. The Stripe webhook
+ * leaves Location blank on most charges, so joining to the student by
+ * email (or studentId as fallback) fills it in. Without this, any
+ * PAYMENTS_LOG-based per-location aggregate drops ~70% of recent rows.
+ */
+const _paymentsLocationCache = new WeakMap();
+function getPaymentsWithLocation(data) {
+  if (!data?.PAYMENTS_LOG) return [];
+  const cached = _paymentsLocationCache.get(data);
+  if (cached) return cached;
+  const studentLocByEmail = new Map();
+  const studentLocBySid = new Map();
+  (data.STUDENTS_MASTER || []).forEach((s) => {
+    if (s.email) studentLocByEmail.set(s.email.toLowerCase(), s.location);
+    if (s.studentId) studentLocBySid.set(s.studentId, s.location);
+  });
+  const enriched = data.PAYMENTS_LOG.map((p) => {
+    if (p.location) return p;
+    const fromEmail = p.studentEmail && studentLocByEmail.get(p.studentEmail.toLowerCase());
+    const fromSid = p.studentId && studentLocBySid.get(p.studentId);
+    const inferred = fromEmail || fromSid || '';
+    return inferred ? { ...p, location: inferred } : p;
+  });
+  _paymentsLocationCache.set(data, enriched);
+  return enriched;
+}
+
 function filterByMonth(rows, month, monthField) {
   if (!month) return rows;
   return rows.filter((r) => {
@@ -186,7 +214,7 @@ export function getRevenueByProgram(data, month, location) {
 
 export function getCashCollected(data, month, location) {
   if (!data?.PAYMENTS_LOG) return 0;
-  let rows = data.PAYMENTS_LOG;
+  let rows = getPaymentsWithLocation(data);
   rows = filterByLocation(rows, location);
   rows = rows.filter((r) => r.paymentStatus === 'Paid' && r.paymentMonth === month);
   return rows.reduce((sum, r) => sum + r.paymentAmount, 0);
@@ -199,7 +227,7 @@ export function getCashCollected(data, month, location) {
  */
 export function getCashReceived(data, month, location) {
   if (!data?.PAYMENTS_LOG) return 0;
-  let rows = data.PAYMENTS_LOG;
+  let rows = getPaymentsWithLocation(data);
   rows = filterByLocation(rows, location);
   rows = rows.filter((r) =>
     r.paymentStatus === 'Paid'
