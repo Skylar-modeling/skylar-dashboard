@@ -27,7 +27,7 @@ import { useAirtableEnrollment } from '../hooks/useAirtableEnrollment';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
 import {
   getCurrentMonth, getPreviousMonth, getSameMonthLastYear,
-  getAvailableMonths, getLastNMonths, formatMonthDisplay,
+  getAvailableMonths, getLastNMonths, getYTDMonths, formatMonthDisplay,
 } from '../utils/dateHelpers';
 import { formatCurrency, formatPercent, formatNumber } from '../utils/formatters';
 import {
@@ -36,6 +36,7 @@ import {
   getAdSpend, getROAS, getCPA, getRevenueByProgram,
   getCashCollected, getCollectionRate, getOutstandingReceivables, getCashInOffice,
   getSalesByChannel, getRevenueTrend, calcChange,
+  getYTDCommissionOwed,
 } from '../utils/calculations';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -143,6 +144,36 @@ export default function ManagerDashboard() {
     }));
   }, [data, month, location]);
 
+  // Year-to-date totals — mirror of the CEO YTD strip minus Profit/Margin
+  // (managers don't see profitability).
+  const ytdMetrics = useMemo(() => {
+    if (!data) return null;
+    const ytdMonths = getYTDMonths(month);
+    const loc = location;
+    const sumOverMonths = (fn, ...args) =>
+      ytdMonths.reduce((sum, m) => sum + (fn(data, m, loc, ...args) || 0), 0);
+    const ytdRevenue = sumOverMonths(getRevenueSales);
+    const ytdSales = sumOverMonths(getSalesCount);
+    const ytdActualized = sumOverMonths(getActualizedRevenue);
+    const ytdExpenses = sumOverMonths((d, m, l) => getTotalExpenses(d, m, l, true));
+    const ytdAdSpend = sumOverMonths(getAdSpend);
+    const ytdCashCollected = sumOverMonths(getCashCollected);
+    const ytdCommission = getYTDCommissionOwed(data, month, loc);
+    return {
+      revenue: ytdRevenue,
+      sales: ytdSales,
+      avgDeal: ytdSales > 0 ? ytdRevenue / ytdSales : null,
+      actualized: ytdActualized,
+      expenses: ytdExpenses,
+      adSpend: ytdAdSpend,
+      roas: ytdAdSpend > 0 ? ytdRevenue / ytdAdSpend : null,
+      cpa: ytdSales > 0 ? ytdAdSpend / ytdSales : null,
+      cashCollected: ytdCashCollected,
+      collectionRate: ytdRevenue > 0 ? (ytdCashCollected / ytdRevenue) * 100 : null,
+      commission: ytdCommission,
+    };
+  }, [data, month, location]);
+
   // For YoY, check if comparison data has any values
   const hasComparisonData = useMemo(() => {
     if (!metrics) return false;
@@ -217,6 +248,20 @@ export default function ManagerDashboard() {
           }
         }}
       />
+
+      {/* YTD Summary — mirrors CEO view minus Profit/Margin */}
+      {ytdMetrics && (
+        <>
+          <SectionTitle>Year-to-Date ({month.split('-')[0]})</SectionTitle>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-2">
+            <MetricCard label="YTD Revenue" value={formatCurrency(ytdMetrics.revenue)} />
+            <MetricCard label="YTD Sales" value={formatNumber(ytdMetrics.sales)} />
+            <MetricCard label="YTD Actualized" value={formatCurrency(ytdMetrics.actualized)} />
+            <MetricCard label="YTD Expenses" value={formatCurrency(ytdMetrics.expenses)} />
+            <MetricCard label="YTD Commission" value={formatCurrency(ytdMetrics.commission)} />
+          </div>
+        </>
+      )}
 
       {/* Section 4: Revenue & Sales */}
       <SectionTitle>Revenue &amp; Sales</SectionTitle>

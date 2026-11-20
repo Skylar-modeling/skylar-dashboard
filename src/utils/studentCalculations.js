@@ -353,16 +353,30 @@ export function getCohorts(data, location) {
     // Per-student payment status
     const outstanding = s.adjustedBalanceOwed || 0;
     const cancelled = (s.enrollmentStatus || '').trim().toLowerCase() === 'cancelled';
-    const failedCount = (data.PAYMENTS_LOG || []).filter(
+    // "Needs attention" means the student is currently delinquent — their MOST
+    // RECENT payment attempt is a failure. A caught-up student with historic
+    // failures is on-plan, not red. Count of still-live failed attempts (most
+    // recent chronological streak) is reported for the "N failed" badge.
+    const studentPayments = (data.PAYMENTS_LOG || []).filter(
       (p) => p.studentEmail && s.email
         && p.studentEmail.toLowerCase() === s.email.toLowerCase()
-        && isFailedPayment(p)
-    ).length;
+    );
+    // Sort by date desc so index 0 is the most recent attempt.
+    const sortedByDate = [...studentPayments]
+      .filter((p) => p.paymentDate)
+      .sort((a, b) => (b.paymentDate || '').localeCompare(a.paymentDate || ''));
+    // Count how many of the most-recent attempts (as a contiguous streak) are failures.
+    let liveFailedStreak = 0;
+    for (const p of sortedByDate) {
+      if (isFailedPayment(p)) liveFailedStreak += 1;
+      else break;
+    }
+    const failedCount = liveFailedStreak;
 
     let paymentStatus;
     if (cancelled) paymentStatus = 'cancelled';
     else if (outstanding <= 0) paymentStatus = 'paid';
-    else if (failedCount > 0) paymentStatus = 'attention';
+    else if (liveFailedStreak > 0) paymentStatus = 'attention';
     else paymentStatus = 'ontrack';
 
     cohorts.get(groupKey).students.push({
