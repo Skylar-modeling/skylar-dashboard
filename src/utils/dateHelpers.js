@@ -73,9 +73,13 @@ export function formatMonthDisplay(yyyymm) {
 }
 
 export function getLast6Months(yyyymm) {
+  return getLastNMonths(yyyymm, 6);
+}
+
+export function getLastNMonths(yyyymm, n) {
   const months = [];
   let current = yyyymm;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < n; i++) {
     months.unshift(current);
     current = getPreviousMonth(current);
   }

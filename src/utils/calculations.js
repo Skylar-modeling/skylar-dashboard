@@ -192,6 +192,24 @@ export function getCashCollected(data, month, location) {
   return rows.reduce((sum, r) => sum + r.paymentAmount, 0);
 }
 
+/**
+ * Actual cash received in a month: Paid PAYMENTS_LOG rows net of refunds,
+ * EXCLUDING Adjustment rows (contract-price corrections, not real cash).
+ * Used for the cashflow line on the revenue trend chart.
+ */
+export function getCashReceived(data, month, location) {
+  if (!data?.PAYMENTS_LOG) return 0;
+  let rows = data.PAYMENTS_LOG;
+  rows = filterByLocation(rows, location);
+  rows = rows.filter((r) =>
+    r.paymentStatus === 'Paid'
+    && r.paymentMonth === month
+    && (r.paymentCategory || '').toLowerCase() !== 'adjustment'
+    && (r.cashTransactionType || '').toLowerCase() !== 'adjustment'
+  );
+  return rows.reduce((sum, r) => sum + r.paymentAmount, 0);
+}
+
 export function getCollectionRate(data, month, location) {
   const rev = getRevenueSales(data, month, location);
   if (rev === 0) return null;
@@ -468,6 +486,7 @@ export function getRevenueTrend(data, months, location) {
     month,
     revenueSales: getRevenueSales(data, month, location),
     actualizedRevenue: getActualizedRevenue(data, month, location),
+    cashReceived: getCashReceived(data, month, location),
     totalExpenses: getTotalExpenses(data, month, location),
   }));
 }

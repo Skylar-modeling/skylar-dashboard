@@ -25,7 +25,7 @@ import {
 import { useSheetData } from '../hooks/useSheetData';
 import { useAirtableEnrollment } from '../hooks/useAirtableEnrollment';
 import { LOCATIONS, PROGRAM_COLORS, CHART_COLORS } from '../config/constants';
-import { getCurrentMonth, getPreviousMonth, getSameMonthLastYear, getAvailableMonths, getLast6Months, getYTDMonths, formatMonthDisplay } from '../utils/dateHelpers';
+import { getCurrentMonth, getPreviousMonth, getSameMonthLastYear, getAvailableMonths, getLastNMonths, getYTDMonths, formatMonthDisplay } from '../utils/dateHelpers';
 import { formatCurrency, formatPercent, formatNumber } from '../utils/formatters';
 import {
   getRevenueSales, getSalesCount, getAverageDealSize, getActualizedRevenue,
@@ -168,7 +168,7 @@ export default function CEODashboard() {
   const prevSalesByChannel = useMemo(() => data ? getSalesByChannel(data, compMonth, location) : null, [data, compMonth, location]);
   const trendData = useMemo(() => {
     if (!data) return [];
-    const months = getLast6Months(month);
+    const months = getLastNMonths(month, 13);
     return getRevenueTrend(data, months, location).map((d) => ({
       ...d,
       monthLabel: formatMonthDisplay(d.month),
@@ -451,7 +451,7 @@ export default function CEODashboard() {
       <SalesByChannel data={salesByChannel} prevData={prevSalesByChannel} />
 
       {/* Section 8: Revenue Trend */}
-      <SectionTitle>Revenue Trend (6 Months)</SectionTitle>
+      <SectionTitle>Revenue Trend (13 Months)</SectionTitle>
       {trendData.length > 0 ? (
         <ChartCard>
           <ResponsiveContainer width="100%" height={300}>
@@ -461,9 +461,10 @@ export default function CEODashboard() {
               <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} stroke="var(--color-text-muted)" fontSize={12} />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
-              <Line type="monotone" dataKey="revenueSales" name="Revenue (Sales)" stroke={CHART_COLORS.primary} strokeWidth={2} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="actualizedRevenue" name="Actualized Revenue" stroke={CHART_COLORS.secondary} strokeWidth={2} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="totalExpenses" name="Total Expenses" stroke={CHART_COLORS.red} strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="revenueSales" name="Revenue (Sales)" stroke={CHART_COLORS.primary} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="actualizedRevenue" name="Actualized Revenue" stroke={CHART_COLORS.secondary} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="cashReceived" name="Cash Received" stroke={CHART_COLORS.green} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="totalExpenses" name="Total Expenses" stroke={CHART_COLORS.red} strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
