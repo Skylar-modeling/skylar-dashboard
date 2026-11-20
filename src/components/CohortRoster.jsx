@@ -136,8 +136,8 @@ export default function CohortRoster({ cohorts, data, location }) {
 
       {filtered.length === 0 ? (
         <EmptyState
-          title={`No ${program} cohorts`}
-          message={`No ${program} students recorded for this location yet.`}
+          title={`No open ${program} cohorts`}
+          message={`Every ${program} cohort here is fully paid or cancelled — nothing needs attention.`}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

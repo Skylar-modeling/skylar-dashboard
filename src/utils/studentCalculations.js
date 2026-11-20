@@ -300,6 +300,10 @@ export function getOpenAccounts(data, location) {
  *  - "attention" → outstanding > 0 AND at least one failed charge
  *  - "cancelled" → enrollmentStatus === "Cancelled"
  *
+ * Only cohorts with at least one "ontrack" or "attention" student are returned —
+ * cohorts where every student is paid or cancelled are fully resolved and would
+ * just be noise in the roster view. Finished-but-unresolved cohorts still show.
+ *
  * Returns an array of cohort objects sorted by date descending (most recent first).
  */
 export function getCohorts(data, location) {
@@ -369,8 +373,14 @@ export function getCohorts(data, location) {
     });
   });
 
+  // Keep only cohorts with at least one unresolved student (on plan or needs attention).
+  // Fully-paid cohorts — even ones that include some cancelled students — are done.
+  const unresolved = Array.from(cohorts.values()).filter((c) =>
+    c.students.some((s) => s.paymentStatus === 'ontrack' || s.paymentStatus === 'attention')
+  );
+
   // Sort cohorts by date descending (most recent / upcoming first)
-  return Array.from(cohorts.values()).sort((a, b) => (b.sortKey || '').localeCompare(a.sortKey || ''));
+  return unresolved.sort((a, b) => (b.sortKey || '').localeCompare(a.sortKey || ''));
 }
 
 // Days back from "now" we consider for the dunning views. Older invoices are
