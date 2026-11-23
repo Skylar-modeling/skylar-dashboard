@@ -307,7 +307,8 @@ export function getRepAppointmentsTaken(data, repName, month, location) {
  * cancellation month — a cancellation entered today for a sale from March
  * reduces March's count for that rep.
  *
- * Returns rows sorted by non-cancelled sales count descending.
+ * Returns rows sorted by revenue sold (recognized revenue, non-cancelled)
+ * descending; ties broken by sales count.
  */
 export function getTopSalesReps(data, month, location, limit = 5) {
   if (!data?.STUDENTS_MASTER) return [];
@@ -343,7 +344,7 @@ export function getTopSalesReps(data, month, location, limit = 5) {
   });
 
   return Object.values(repMap)
-    .sort((a, b) => b.salesCount - a.salesCount)
+    .sort((a, b) => (b.revenueSold - a.revenueSold) || (b.salesCount - a.salesCount))
     .slice(0, limit)
     .map((r) => ({ ...r, commission: r.commission || 0 }));
 }

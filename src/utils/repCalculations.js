@@ -87,7 +87,10 @@ export function getRepSalesAndRank(data, repName, month, location) {
     repMeta[rep].revenue += (s.recognizedRevenue || 0);
   });
 
-  const sorted = Object.entries(repMap).sort((a, b) => b[1] - a[1]);
+  // Rank by revenue sold (recognized revenue, non-cancelled); ties by sales count
+  const sorted = Object.entries(repMap).sort(
+    (a, b) => (repMeta[b[0]].revenue - repMeta[a[0]].revenue) || (b[1] - a[1])
+  );
   const myCount = repMap[repName] || 0;
   const myIndex = sorted.findIndex(([name]) => name === repName);
   const myMeta = repMeta[repName] || { cancelled: 0, total: 0, revenue: 0 };
