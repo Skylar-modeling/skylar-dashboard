@@ -26,7 +26,7 @@ React dashboard for Skylar Modeling (modeling school, NY + Miami). Three role ti
 - `src/utils/formatters.js` — Currency, percent, number formatting
 - `src/pages/CEODashboard.jsx` — CEO view (8 sections, location filter)
 - `src/pages/ManagerDashboard.jsx` — Manager view (locked to location, MoM/YoY toggle)
-- `src/pages/AdvisorDashboard.jsx` — Advisor view (student search + sales ops + rep ranking, no financials)
+- `src/pages/AdvisorDashboard.jsx` — Advisor view (student search + sales ops + rep ranking with revenue sold/avg deal, no commission)
 - `src/components/StudentSearch.jsx` — Search overlay (Ctrl+K)
 - `src/components/StudentDetail.jsx` — Full student record modal
 - `src/components/RoleSelector.jsx` — Landing page with S K Y L A R  M O D E L I N G branding
@@ -35,7 +35,7 @@ React dashboard for Skylar Modeling (modeling school, NY + Miami). Three role ti
 ## Role Tiers
 - **CEO**: Full access — revenue, profitability, marketing, cash, reps, operations, trends
 - **Manager**: Same as CEO minus Top 5 Reps table, locked to one location, has YoY comparison toggle
-- **Advisor**: Lowest tier — student search, sales operations, rep ranking (sales count only, no financial data)
+- **Advisor**: Lowest tier — student search, sales operations, rep ranking (ranked by revenue sold; shows revenue sold + avg deal, no commission)
 
 ## Conventions
 - Dark theme: bg #0F172A, cards #1E293B, borders #334155
@@ -62,7 +62,8 @@ React dashboard for Skylar Modeling (modeling school, NY + Miami). Three role ti
 - Manager expenses exclude blank-location (company-wide) expenses
 - CEO "ALL" view includes all expenses; CEO filtered by location includes that location + blank
 - Student payment matching: by email (primary), studentId (fallback)
-- Advisor dashboard: NO financial data shown (no revenue, no commission amounts)
+- Advisor dashboard: rep ranking shows revenue sold + avg deal size; NO commission amounts or contract prices
+- Rep ranking (all views) = revenue sold desc, ties by sales count. Column order: #, Rep, Revenue Sold, Avg Deal, Close Rate, Cancel Rate, Sales, Appts (+ Commission Earned on CEO only)
 
 ## Git & Deploy
 - Push: `git push origin main` (token auth configured in remote URL)
@@ -74,4 +75,4 @@ React dashboard for Skylar Modeling (modeling school, NY + Miami). Three role ti
 - Read from CEO_DASHBOARD or MANAGER_DASHBOARD Google Sheets tabs (those are formula-based)
 - Use service account auth — we use API key (sheet is public-viewer)
 - Break the 5-minute refresh interval or make excessive API calls (100 req/100s rate limit)
-- Show financial data (revenue, commission $, contract prices) on the Advisor dashboard
+- Show commission $ or contract prices on the Advisor dashboard

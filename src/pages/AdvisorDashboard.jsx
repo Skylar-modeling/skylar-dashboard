@@ -12,7 +12,7 @@ import {
   getCurrentMonth, getPreviousMonth, getAvailableMonths,
 } from '../utils/dateHelpers';
 import { getSalesByChannel, getRepAppointmentsTaken } from '../utils/calculations';
-import { formatPercent } from '../utils/formatters';
+import { formatPercent, formatCurrency } from '../utils/formatters';
 import { getEnrichedStudents } from '../utils/studentCalculations';
 
 function SectionTitle({ children }) {
@@ -20,8 +20,8 @@ function SectionTitle({ children }) {
 }
 
 /**
- * Get sales rep ranking — NO financial data shown (no revenue, no commission).
- * Order is by revenue sold, but the revenue value is not returned.
+ * Get sales rep ranking, ordered by revenue sold. Shows revenue sold and
+ * avg deal size (no commission).
  * Cancelled sales attributed to the SALE month (not cancellation month) and
  * excluded from the sales count. Close rate = sales / appointments taken.
  * Cancel rate = cancelled / total sold.
@@ -41,13 +41,13 @@ function getRepRanking(data, month, location) {
   students.forEach((s) => {
     const rep = s.salesRep1;
     if (!rep) return;
-    if (!repMap[rep]) repMap[rep] = { name: rep, salesCount: 0, cancelledCount: 0, totalSold: 0, _revenue: 0 };
+    if (!repMap[rep]) repMap[rep] = { name: rep, salesCount: 0, cancelledCount: 0, totalSold: 0, revenueSold: 0 };
     const isCancelled = (s.enrollmentStatus || '').trim().toLowerCase() === 'cancelled';
     repMap[rep].totalSold += 1;
     if (isCancelled) repMap[rep].cancelledCount += 1;
     else {
       repMap[rep].salesCount += 1;
-      repMap[rep]._revenue += (s.recognizedRevenue || 0);
+      repMap[rep].revenueSold += (s.recognizedRevenue || 0);
     }
   });
 
@@ -56,17 +56,12 @@ function getRepRanking(data, month, location) {
     rep.apptsTaken = appts;
     rep.closeRate = appts > 0 ? (rep.salesCount / appts) * 100 : null;
     rep.cancellationRate = rep.totalSold > 0 ? (rep.cancelledCount / rep.totalSold) * 100 : null;
+    rep.avgDealSize = rep.salesCount > 0 ? rep.revenueSold / rep.salesCount : null;
   });
 
-  // Ranked by revenue sold (same order as CEO view), but the revenue figure
-  // itself is stripped before returning — advisors never see $ amounts.
+  // Ranked by revenue sold (same order as CEO view); ties by sales count
   return Object.values(repMap)
-    .sort((a, b) => (b._revenue - a._revenue) || (b.salesCount - a.salesCount))
-    .map((r) => {
-      const rest = { ...r };
-      delete rest._revenue;
-      return rest;
-    });
+    .sort((a, b) => (b.revenueSold - a.revenueSold) || (b.salesCount - a.salesCount));
 }
 
 export default function AdvisorDashboard() {
@@ -89,10 +84,12 @@ export default function AdvisorDashboard() {
   const repColumns = [
     { key: 'rank', label: '#', render: (_, __, i) => i + 1 },
     { key: 'name', label: 'Sales Rep' },
-    { key: 'salesCount', label: 'Sales' },
-    { key: 'apptsTaken', label: 'Appts' },
+    { key: 'revenueSold', label: 'Revenue Sold', render: (v) => formatCurrency(v) },
+    { key: 'avgDealSize', label: 'Avg Deal', render: (v) => v != null ? formatCurrency(v) : '—' },
     { key: 'closeRate', label: 'Close Rate', render: (v) => v != null ? formatPercent(v) : '—' },
     { key: 'cancellationRate', label: 'Cancel Rate', render: (v) => v != null ? formatPercent(v) : '—' },
+    { key: 'salesCount', label: 'Sales' },
+    { key: 'apptsTaken', label: 'Appts' },
   ];
 
   if (loading) {

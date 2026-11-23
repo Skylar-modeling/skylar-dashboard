@@ -426,13 +426,14 @@ export default function CEODashboard() {
       <ChartCard>
         <DataTable
           columns={[
+            { key: 'rank', label: '#', render: (_, __, i) => i + 1 },
             { key: 'name', label: 'Rep Name' },
-            { key: 'salesCount', label: 'Sales' },
-            { key: 'apptsTaken', label: 'Appts' },
+            { key: 'revenueSold', label: 'Revenue Sold', render: (v) => formatCurrency(v) },
+            { key: 'avgDealSize', label: 'Avg Deal', render: (v) => v != null ? formatCurrency(v) : '—' },
             { key: 'closeRate', label: 'Close Rate', render: (v) => v != null ? formatPercent(v) : '—' },
             { key: 'cancellationRate', label: 'Cancel Rate', render: (v) => v != null ? formatPercent(v) : '—' },
-            { key: 'avgDealSize', label: 'Avg Deal', render: (v) => v != null ? formatCurrency(v) : '—' },
-            { key: 'revenueSold', label: 'Revenue Sold', render: (v) => formatCurrency(v) },
+            { key: 'salesCount', label: 'Sales' },
+            { key: 'apptsTaken', label: 'Appts' },
             { key: 'commission', label: 'Commission Earned', render: (v) => formatCurrency(v) },
           ]}
           data={topReps}

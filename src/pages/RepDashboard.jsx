@@ -157,19 +157,19 @@ export default function RepDashboard() {
 
       {/* Section 2: Your Sales */}
       <SectionTitle>Your Sales</SectionTitle>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <MetricCard
-          label="Sales This Month"
-          value={formatNumber(salesData?.cur.salesCount || 0)}
-          comparison={salesData ? calcChange(salesData.cur.salesCount, salesData.prev.salesCount) : null}
-        />
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
         <MetricCard
           label="Your Ranking"
           value={salesData?.cur.salesCount > 0 ? `#${salesData.cur.rank} of ${salesData.cur.totalReps}` : 'N/A'}
         />
         <MetricCard
-          label="Appts Taken"
-          value={formatNumber(salesData?.cur.apptsTaken || 0)}
+          label="Revenue Sold"
+          value={formatCurrency(salesData?.cur.revenueSold || 0)}
+          comparison={salesData ? calcChange(salesData.cur.revenueSold, salesData.prev.revenueSold) : null}
+        />
+        <MetricCard
+          label="Avg Deal Size"
+          value={salesData?.cur.avgDealSize != null ? formatCurrency(salesData.cur.avgDealSize) : 'N/A'}
         />
         <MetricCard
           label="Close Rate"
@@ -181,8 +181,13 @@ export default function RepDashboard() {
           value={salesData?.cur.cancellationRate != null ? formatPercent(salesData.cur.cancellationRate) : 'N/A'}
         />
         <MetricCard
-          label="Avg Deal Size"
-          value={salesData?.cur.avgDealSize != null ? formatCurrency(salesData.cur.avgDealSize) : 'N/A'}
+          label="Sales This Month"
+          value={formatNumber(salesData?.cur.salesCount || 0)}
+          comparison={salesData ? calcChange(salesData.cur.salesCount, salesData.prev.salesCount) : null}
+        />
+        <MetricCard
+          label="Appts Taken"
+          value={formatNumber(salesData?.cur.apptsTaken || 0)}
         />
       </div>
 
